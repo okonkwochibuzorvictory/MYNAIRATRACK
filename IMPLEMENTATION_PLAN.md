@@ -330,6 +330,124 @@
 
 ---
 
+## Technology & Tooling Decisions (MVP)
+
+> Context: MYNAIRATRACK MVP runs **locally** first. Where a tool has a free tier sufficient for MVP, that is what goes in the plan. Anything only needed at scale or after MVP is marked future.
+
+### 1. Frontend framework
+- **Recommended:** React (with Vite for local dev)
+- **Purpose:** User interface for dashboard, budgeting, accounts, etc.
+- **Why it fits:** Component-based, huge ecosystem, strong local dev experience with Vite, works later with any hosting.
+- **Free/free-tier:** Fully free and open-source.
+- **Would cost later:** Nothing by itself.
+- **MVP required:** Yes (for the app UI).
+
+### 2. Backend framework/runtime
+- **Recommended:** Python + FastAPI
+- **Purpose:** API server for accounts, transactions, budgets, savings, goals, business mode, users.
+- **Why it fits:** Simple, typed, fast to build, free; good local development.
+- **Free/free-tier:** Fully free.
+- **Would cost later:** Server hosting only.
+- **MVP required:** Yes.
+
+### 3. Database
+- **Recommended:** PostgreSQL
+- **Purpose:** Relational store for structured financial data and relationships (users, accounts, transactions, budgets, goals, currencies).
+- **Why it fits:** Open-source, robust ACID transactions, mature, excellent fit for finance-record relationships; free-tier hosted options exist when we move online.
+- **Free/free-tier:** Fully free locally; free hosted tiers available later.
+- **Would cost later:** Hosting/storage at scale.
+- **MVP required:** Yes.
+
+### 4. Authentication
+- **Recommended:** Local email + password with hashed passwords (bcrypt) and JWT sessions, implemented in our own API.
+- **Purpose:** Local user accounts.
+- **Why it fits:** PRD only says "create an account." No external auth needed at MVP. Simple, free, works locally.
+- **Free/free-tier:** Free.
+- **Would cost later:** If we move to hosted auth (e.g., Supabase Auth / Firebase Auth free tiers suffice for long; paid tiers only at scale).
+- **MVP required:** Yes.
+
+### 5. File storage
+- **Recommended:** None for MVP. Local disk only if receipts are ever added.
+- **Purpose:** Potential future receipts/attachments.
+- **Why it fits:** No storage requirement in PRD; adds cost/complexity to add early.
+- **Free option:** Local disk storage (free).
+- **Future option:** free-tier object storage (e.g., Supabase Storage / S3-compatible free tier).
+- **MVP required:** No.
+
+### 6. Email service
+- **Recommended:** None for MVP.
+- **Purpose:** Future account verification/password reset notifications.
+- **Why it fits:** No email requirement in PRD for MVP.
+- **Future free option:** Free-tier transactional email (e.g., Brevo free tier, Gmail SMTP for low volume).
+- **MVP required:** No.
+
+### 7. Payment platform
+- **Recommended:** None.
+- **Purpose:** MYNAIRATRACK does not process payments in the PRD.
+- **Why it fits:** Keeping it out avoids Stripe/PayPal fees and complexity.
+- **MVP required:** No.
+
+### 8. Real-time functionality
+- **Recommended:** None for MVP.
+- **Purpose:** Live dashboard updates.
+- **Why it fits:** PRD does not require real-time; a local web app with normal request/refresh is sufficient.
+- **Future option (free):** WebSocket via FastAPI if needed.
+- **MVP required:** No.
+
+### 9. Currency conversion/exchange-rate source
+- **Recommended (MVP):** A manually maintained exchange-rate table in the database (admin/user-editable rates for USD→NGN, EUR→NGN, GBP→NGN, etc.).
+- **Purpose:** Only for the "All Currencies" consolidated view and consolidated financial overview (report-level conversion).
+- **Why it fits:** PRD states conversion is needed for consolidated views but does NOT require live rates. A simple rate table avoids external APIs, cost, and complexity.
+- **Free/free-tier:** Free.
+- **Future option (free tier):** Free exchange-rate API tier (e.g., ExchangeRate.host / open.er-api.com) if live/auto rates are ever approved.
+- **MVP required:** Yes — but only as a simple editable rate table, not a live FX integration.
+
+### 10. Notifications/alerts
+- **Recommended (MVP):** In-app alert display (dashboard/alert list) driven by thresholds.
+- **Purpose:** Budget alerts at 50/80/100/over-budget, insight notices.
+- **Why it fits:** PRD says optional budget alerts; in-app alerts satisfy it without free-tier email/push dependencies.
+- **Future option:** Email/free-tier push notifications.
+- **MVP required:** Yes (in-app only).
+
+### 11. Hosting/deployment
+- **Recommended (MVP):** Run everything locally on the developer machine (app + PostgreSQL). No paid hosting.
+- **Why it fits:** PRD says "app and database should run locally for now."
+- **Future free-tier options:** Vercel (frontend), Render/Railway free tier (backend/Postgres) for a later public demo.
+- **Would cost later:** Hosting at public scale.
+- **MVP required:** No (not needed until deployed).
+
+### 12. Testing
+- **Recommended:** pytest (backend, FastAPI), Vitest (frontend React), and a few manual end-to-end checks.
+- **Why it fits:** All free/open-source, standard for this stack, covers the currency matching rules.
+- **MVP required:** Yes.
+
+### 13. Local development environment
+- **Recommended:** Local dev with Vite dev server + FastAPI dev server + local PostgreSQL; optionally Docker Compose for one-command DB startup (Docker Desktop is free for personal dev).
+- **Why it fits:** Matches "run locally now" and keeps zero costs.
+- **MVP required:** Yes (this is how we run the app).
+
+---
+
+## Final recommended stack table
+
+| Area | Recommended Tool | MVP Required? | Free Option? | Reason |
+|---|---|---|---|---|
+| Frontend | React + Vite | Yes | Yes (OSS) | Component UI, local dev, later hostable anywhere |
+| Backend | Python + FastAPI | Yes | Yes (OSS) | Simple, typed, free API server |
+| Database | PostgreSQL | Yes | Yes (OSS / free tier) | Structured financial data relationships, free |
+| Authentication | Email + password, bcrypt + JWT | Yes | Yes | PRD just needs accounts; no external auth |
+| File storage | None (local disk only if ever needed) | No | Yes | No storage requirement in PRD |
+| Email service | None (future free tier: Brevo) | No | Yes | Not in PRD |
+| Payment platform | None | No | N/A | Not in PRD |
+| Real-time | None | No | N/A | Not in PRD; normal refresh is enough |
+| Currency conversion | Editable rate table in DB (MVP) | Yes (basic) | Yes | Satisfies consolidated views without live FX |
+| Notifications/alerts | In-app alerts | Yes (in-app) | Yes | Matches PRD's optional alert concept |
+| Hosting/deployment | Local only for now | No | Yes | PRD: run locally |
+| Testing | pytest + Vitest | Yes | Yes | Free, standard, covers currency rules |
+| Local dev environment | Local dev servers + local Postgres (Docker optional) | Yes | Yes | Zero-cost local development |
+
+---
+
 ## Recommended implementation order
 
 1. Phase 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9 → 11 → 10 → 12 → 13 → 14
