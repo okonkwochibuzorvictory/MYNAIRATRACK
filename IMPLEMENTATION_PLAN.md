@@ -13,8 +13,8 @@
 | Frontend | React + Vite | Yes | Yes (OSS) | Component UI for dashboard/budgets/accounts; fast local dev; hostable anywhere later |
 | Backend | Python + FastAPI | Yes | Yes (OSS) | Simple typed API server; good local dev; fits finance CRUD |
 | Database | PostgreSQL | Yes | Yes (OSS, free locally) | Relational ACID store for structured financial data and relationships |
-| Authentication | Email + password, Argon2/pwdlib hashing, JWT sessions | Yes | Yes (OSS) | Secure, simple, free; PRD only requires account creation |
-| Currency conversion | PostgreSQL-backed manually maintainable exchange-rate table | Yes (basic only) | Yes | PRD requires conversion only for consolidated reporting; no live FX in MVP |
+| Authentication | Email + password, Argon2/pwdlib hashing, JWT in secure httpOnly cookie | Yes | Yes (OSS) | Secure, simple, free; PRD only requires account creation |
+| Currency conversion | External FX API → FastAPI → PostgreSQL cached rates → reporting/consolidation | Yes | Yes (free-tier provider) | Latest provider rates cached in DB; reporting-only conversion; missing rate shows unavailable |
 | Notifications/alerts | In-app alerts only | Yes (in-app) | Yes | PRD requires optional budget alerts; no email/push needed |
 | Testing | pytest (backend), Vitest (frontend) | Yes | Yes (OSS) | Standard, free; covers currency rules |
 | Local dev environment | Local Vite dev server + local FastAPI server + local PostgreSQL; Docker optional | Yes | Yes | Zero-cost local development |
@@ -28,7 +28,16 @@
 | Redis / cache | None | No | N/A | Unnecessary complexity for local MVP |
 | Cloud hosting | None during initial development (local only) | No | N/A | PRD: run locally for now |
 
-**Explicitly excluded from MVP** (future only if a real product requirement emerges): payment processing, file storage, email infrastructure, real-time/WebSocket infrastructure, external authentication providers, live FX APIs, Redis, cloud hosting.
+**Explicitly excluded from MVP** (future only if a real product requirement emerges): payment processing, file storage, email infrastructure, real-time/WebSocket infrastructure, external authentication providers, Redis, cloud hosting.
+
+### Currency architecture (final, corrected)
+
+**Flow:** External FX API → FastAPI backend → PostgreSQL cached exchange rates → MYNAIRATRACK reporting/conversion.
+
+- **FX provider (MVP recommendation): open.er-api.com (ExchangeRate-API free open endpoint).** Free, no API key required, supports NGN/USD/EUR/GBP, HTTP JSON. Fits the zero-cost MVP and the four-currency scope. If it requires a key later or is replaced, the key lives only in `FX_API_KEY` env, never in frontend code.
+- **Why it fits:** Reporting-only conversion for the All Currencies view; no trading, no live streaming, no paid plan. Provider sits behind a backend adapter interface (`backend/app/fx_provider.py`) so it can be swapped later without architectural changes.
+- **Rules:** React must NOT call the FX provider directly. FastAPI fetches rates, stores rate + timestamp + provider/source in `exchange_rates`, and serves conversions from cache. On provider failure, use the most recent valid cached rate and clearly show last-update time + "cached rate" label. With no valid rate, show conversion as unavailable. Historical transaction/account/budget/savings/goal amounts and currencies are never rewritten. FX is for reporting/consolidation only; MYNAIRATRACK performs no currency exchange or trading.
+- **Rate-table editing:** NOT a normal user setting. Rates come from the provider via the backend. Manual correction is an administrative/future capability only.
 
 ### Product decisions vs implementation decisions
 
@@ -43,7 +52,7 @@
 - In-app budget alerts only. Multiple income sources. Personal finance + Business Mode in one product.
 
 **Implementation decisions (technical, chosen to serve the PRD at zero cost):**
-- React + Vite / FastAPI / PostgreSQL / local JWT auth / editable rate table / pytest + Vitest / local-only run.
+- React + Vite / FastAPI / PostgreSQL / local JWT auth via secure httpOnly cookie / external FX API with PostgreSQL rate cache / pytest + Vitest / local-only run.
 - Exact file layout, API shapes, and schema column names are implementation detail and may evolve within a phase, but must not change product behavior.
 
 ---
@@ -58,7 +67,7 @@ Keep setup as simple as reasonably possible. Docker is optional, not mandatory.
 
 **Backend (Python + FastAPI):**
 - Python 3.11+ with virtualenv. `pip install -r requirements.txt`, then `uvicorn app.main:app --reload --port 8000`.
-- Env vars (via local `.env`, never committed): `DATABASE_URL` (e.g. `postgresql://mynaira:mynaira@localhost:5432/mynairatrack`), `JWT_SECRET` (random local string), `JWT_EXPIRE_MINUTES` (e.g. 60), `CORS_ORIGINS` (e.g. `http://localhost:5173`).
+- Env vars (via local `.env`, never committed): `DATABASE_URL` (e.g. `postgresql://mynaira:mynaira@localhost:5432/mynairatrack`), `JWT_SECRET` (random local string), `JWT_EXPIRE_MINUTES` (e.g. 60), `CORS_ORIGINS` (e.g. `http://localhost:5173`), `COOKIE_SECURE` (false locally, true in HTTPS), `FX_PROVIDER` (e.g. `open-er-api`), `FX_BASE_URL` (provider base URL), `FX_API_KEY` (only if the provider requires one; empty for keyless providers).
 
 **PostgreSQL (local):**
 - Install PostgreSQL locally (or optionally `docker compose up db` if Docker is available).
@@ -67,7 +76,7 @@ Keep setup as simple as reasonably possible. Docker is optional, not mandatory.
 
 **How pieces communicate:**
 - Browser → Vite dev server (static + HMR) → `fetch(VITE_API_URL/...)` → FastAPI → PostgreSQL via `DATABASE_URL`.
-- Auth: frontend stores JWT in memory (or httpOnly cookie alternative — decided in Phase 3) and sends `Authorization: Bearer <token>`; backend validates and scopes every query to the authenticated user.
+- Auth: backend sets JWT in a secure httpOnly cookie on login; browser sends it automatically with `fetch(..., { credentials: "include" })`; backend validates and scopes every query to the authenticated user. CORS allows only `CORS_ORIGINS` with credentials enabled.
 
 ---
 
@@ -77,7 +86,7 @@ Only tables needed by the PRD. No extra tables for complexity.
 
 - `users` — id, name, email (unique), password_hash (Argon2), primary_currency (default NGN), timestamps.
 - `currencies` — code (NGN/USD/EUR/GBP), name, symbol. Seed table, read-only in normal use.
-- `exchange_rates` — from_currency, to_currency, rate, updated_at. Manually maintainable. Used ONLY for consolidated reporting. If a required rate is missing, the system must show "conversion unavailable," never a silently wrong number.
+- `exchange_rates` — from_currency, to_currency, rate, provider/source, fetched_at. Populated by FastAPI from the external FX provider and cached in PostgreSQL. Used ONLY for consolidated reporting. If the provider is unavailable, use the most recent valid cached rate and label it as cached with its timestamp. If no valid rate exists, show "conversion unavailable," never an invented rate.
 - `accounts` — id, user_id, name, currency, is_business (bool), timestamps. One currency per account (MVP).
 - `categories` — id, user_id (nullable for defaults), name, type (income/expense), is_default. Defaults seeded from PRD; users can add custom.
 - `transactions` — id, user_id, account_id, type (income/expense/sale), amount (numeric, never negative logic errors), currency (original, immutable), category_id, date, payment_method, note, is_business. Original amount+currency never updated by conversion or primary-currency change.
@@ -98,12 +107,12 @@ Income vs expenses are rows in `transactions` distinguished by `type` (PRD treat
 - **Public (unauthenticated):** landing/welcome page, sign-up page, login page only.
 - **Protected (authenticated):** dashboard and all financial data pages. Unauthenticated API calls return 401.
 - **Registration:** name, email, password. Validate email format + uniqueness; validate password (minimum length 8, and require at least one letter and one number — simple, documented rule). Hash with Argon2 via pwdlib before storing. Never store or log plaintext passwords.
-- **Login:** email + password → verify Argon2 hash → issue JWT. Generic error message ("Invalid email or password") to avoid user enumeration.
+- **Login:** email + password → verify Argon2 hash → issue JWT set as secure httpOnly cookie. Generic error message ("Invalid email or password") to avoid user enumeration.
 - **Password hashing:** Argon2id via pwdlib. No bcrypt, no plaintext, no reversible encryption.
-- **JWT/session handling:** signed JWT containing user id + expiry. Sent as `Authorization: Bearer`. Backend validates signature + expiry on every protected endpoint.
-- **Token/session expiration:** access token expiry (e.g. 60 minutes, configurable via `JWT_EXPIRE_MINUTES`). Expired token → 401 → frontend redirects to login.
-- **Protected routes:** frontend route guard (redirect to login if no valid token) + backend dependency that rejects unauthenticated requests.
-- **Logout:** frontend discards token (and calls logout endpoint if implemented); logged-out user cannot access protected routes without logging in again.
+- **JWT/session handling:** signed JWT containing user id + expiry, stored in a secure httpOnly cookie (`HttpOnly; SameSite=Lax; Secure` in HTTPS; `Secure` off only for local HTTP). Frontend uses `credentials: "include"` and never reads the token via JavaScript. Backend validates signature + expiry on every protected endpoint. CORS configured with explicit origins + `allow_credentials=true`.
+- **Token/session expiration:** access token expiry (e.g. 60 minutes, configurable via `JWT_EXPIRE_MINUTES`). Expired cookie → 401 → frontend redirects to login.
+- **Protected routes:** frontend route guard (redirect to login when a protected API returns 401 / no session) + backend dependency that rejects unauthenticated requests.
+- **Logout:** backend clears the cookie (expired empty cookie) and frontend redirects to landing/login; logged-out user cannot access protected routes without logging in again.
 - **Authentication errors:** consistent JSON errors (401 invalid/expired token, 400 validation, 409 email taken, 422 malformed input). No stack traces to client.
 - **User-specific data access:** every financial query filtered by `user_id` from the token. Users can only access/modify their own records (enforced in backend, tested per phase). No cross-user reads/writes.
 
@@ -140,23 +149,23 @@ Income vs expenses are rows in `transactions` distinguished by `type` (PRD treat
 - **Objective:** Secure local accounts + onboarding (primary currency, default NGN) + settings to change it.
 - **What will be built:** Landing/welcome page; sign-up, login, logout; basic user setup screen (choose primary currency); settings screen to change primary currency; protected-route guard.
 - **Main user-facing functionality:** Visitor sees landing → signs up / logs in → picks primary currency (NGN default) → reaches empty dashboard shell.
-- **Backend/database work:** `users` CRUD; Argon2 hashing; JWT issue/validate/refresh-or-relogin; expiry enforcement; auth error responses; per-user scoping helper used by all future endpoints.
-- **Files/modules expected:** `frontend/src/pages/{Landing,Signup,Login,Setup,Settings}.tsx`, `frontend/src/auth/*` (guard, token handling); `backend/app/auth.py`, `backend/app/routers/auth.py`, `backend/app/routers/users.py`.
+- **Backend/database work:** `users` CRUD; Argon2 hashing; JWT issue/validate via secure httpOnly cookie; expiry enforcement; CORS with credentials; auth error responses; per-user scoping helper used by all future endpoints.
+- **Files/modules expected:** `frontend/src/pages/{Landing,Signup,Login,Setup,Settings}.tsx`, `frontend/src/auth/*` (guard, `credentials: "include"` API client); `backend/app/auth.py`, `backend/app/routers/auth.py`, `backend/app/routers/users.py`.
 - **Dependencies:** Phase 2 (users table).
-- **Verification criteria:** Register → login → JWT works → protected endpoints reject anonymous calls → change primary currency persists → existing records untouched (no records exist yet; rule stored for later phases).
-- **Tests:** pytest: registration validation, duplicate email rejected, wrong password rejected, expired token rejected, user A cannot read user B data. Vitest: route guard redirects unauthenticated users to login.
+- **Verification criteria:** Register → login sets httpOnly cookie → protected endpoints reject anonymous calls → logout clears cookie → change primary currency persists → existing records untouched (no records exist yet; rule stored for later phases).
+- **Tests:** pytest: registration validation, duplicate email rejected, wrong password rejected, expired cookie rejected, cookie flags (HttpOnly, SameSite) present, user A cannot read user B data. Vitest: route guard redirects unauthenticated users to login.
 - **Gate:** Full auth flow works locally; per-user isolation proven; primary-currency default NGN confirmed.
 
 ### Phase 4 — Currency foundation
 
-- **Objective:** Enforce PRD multi-currency rules app-wide before any money is recorded.
-- **What will be built:** Supported-currency list (NGN/USD/EUR/GBP only); currency field on every money form; shared currency selector/filter component (NGN/USD/EUR/GBP/All Currencies); `exchange_rates` admin-editable table; conversion helper used ONLY for consolidated views; missing-rate behavior (show "unavailable," never guess).
-- **Main user-facing functionality:** User sees currency codes on forms; can switch filter including All Currencies; can view/edit local conversion rates (simple settings screen).
-- **Backend/database work:** Currency validation on all writes (reject anything outside the 4); rate table CRUD (authenticated user scope or single local set — decided in phase, documented); conversion function `convert(amount, from, to)` that raises/returns-unavailable when rate missing.
-- **Files/modules expected:** `frontend/src/components/CurrencySelector.tsx`, `frontend/src/lib/currency.ts`; `backend/app/currency.py`, `backend/app/routers/currencies.py`, `backend/app/routers/exchange_rates.py`.
+- **Objective:** Enforce PRD multi-currency rules app-wide and wire the corrected FX architecture (provider → backend → cached rates → reporting) before any money is recorded.
+- **What will be built:** Supported-currency list (NGN/USD/EUR/GBP only); currency field on every money form; shared currency selector/filter component (NGN/USD/EUR/GBP/All Currencies); FastAPI FX adapter fetching latest rates from the provider; PostgreSQL `exchange_rates` cache (rate + timestamp + provider/source); conversion helper used ONLY for consolidated views; stale-cache fallback with visible last-update/cached labels; missing-rate behavior (show "unavailable," never guess). No user rate-editing screen.
+- **Main user-facing functionality:** User sees currency codes on forms; can switch filter including All Currencies; sees last-update time and cached-rate indicators on consolidated views. No manual rate editing for normal users.
+- **Backend/database work:** Currency validation on all writes (reject anything outside the 4); FX adapter (`fx_provider.py`) behind a replaceable interface; rate refresh job/endpoint (backend-only, keys in env); conversion function `convert(amount, from, to)` reading the latest valid cached rate, falling back to the most recent valid cached rate on provider failure, returning unavailable when no valid rate exists.
+- **Files/modules expected:** `frontend/src/components/CurrencySelector.tsx`, `frontend/src/lib/currency.ts`; `backend/app/currency.py`, `backend/app/fx_provider.py`, `backend/app/routers/currencies.py`, `backend/app/routers/exchange_rates.py` (read-only status/last-update for the app; no user write endpoint).
 - **Dependencies:** Phases 2, 3.
-- **Verification criteria:** Unsupported currency (e.g. JPY) rejected; conversion with missing rate shows unavailable, not a number.
-- **Tests:** pytest: reject unsupported currency; conversion correctness with seeded test rates; missing-rate path. Vitest: selector renders 4 + All.
+- **Verification criteria:** Unsupported currency (e.g. JPY) rejected; React makes zero direct FX calls (verified by code search); provider outage still serves clearly-labeled cached rates; conversion with no valid rate shows unavailable, not a number.
+- **Tests:** pytest: reject unsupported currency; adapter mocked for fetch success/failure; stale-cache fallback; missing-rate path; rate timestamp + provider stored. Vitest: selector renders 4 + All; cached-rate label renders.
 - **Gate:** Currency rules enforced at API level; no feature can save money without a valid MVP currency.
 
 ### Phase 5 — Accounts/wallets
@@ -164,7 +173,7 @@ Income vs expenses are rows in `transactions` distinguished by `type` (PRD treat
 - **Objective:** Accounts/wallets with exactly one currency each (personal or business flag).
 - **What will be built:** Account list/create/edit; each account has name + currency + personal/business flag; per-account balance in its own currency.
 - **Main user-facing functionality:** User creates e.g. Main Bank (NGN), Dollar Account (USD); sees balances per account in native currency.
-- **Backend/database work:** `accounts` CRUD scoped to user; currency immutable after creation in MVP (prevents accidental history rewrites — documented); balance computed from transactions in same currency only.
+- **Backend/database work:** `accounts` CRUD scoped to user; currency is immutable after creation (final decision: protects historical records; user creates another account for a different currency); balance computed from transactions in same currency only.
 - **Files/modules expected:** `frontend/src/pages/Accounts.tsx`; `backend/app/routers/accounts.py`.
 - **Dependencies:** Phase 4.
 - **Verification criteria:** Three accounts in three currencies each show correct native-currency balance; mixed-currency transactions never merged into one balance.
@@ -198,7 +207,7 @@ Income vs expenses are rows in `transactions` distinguished by `type` (PRD treat
 ### Phase 8 — Budgets and guided budgeting
 
 - **Objective:** Flexible + guided budgets, each in one chosen currency, with strict same-currency matching.
-- **What will be built:** Budget create (any amount, any period, any of the 4 currencies; defaults to primary, changeable); category allocations; guided-budget suggestions in the budget's currency; monitoring view (budgeted vs spent vs remaining, in budget currency).
+- **What will be built:** Budget create (any amount, start date + end date period — final decision, any of the 4 currencies; defaults to primary, changeable); category allocations; guided-budget suggestions in the budget's currency; monitoring view (budgeted vs spent vs remaining, in budget currency).
 - **Main user-facing functionality:** User creates ₦100,000 / 14-day budget with allocations; creates a guided budget in USD; watches spent/remaining update as same-currency expenses are recorded.
 - **Backend/database work:** `budgets` + `budget_allocations`; spend computation counts ONLY expenses where `expense.currency == budget.currency`; cross-currency expenses ignored (no conversion) per PRD.
 - **Files/modules expected:** `frontend/src/pages/Budgets.tsx`, `frontend/src/components/GuidedBudget.tsx`; `backend/app/routers/budgets.py`, `backend/app/budgeting.py`.
@@ -222,7 +231,7 @@ Income vs expenses are rows in `transactions` distinguished by `type` (PRD treat
 ### Phase 10 — Dashboard and financial overview
 
 - **Objective:** ONE dashboard, primary-currency default, selector/filter, All Currencies consolidated view. No separate per-currency dashboards.
-- **What will be built:** Cards for available money, income, expenses, current/remaining budget, savings, spending breakdown, recent transactions, budget status, alerts, progress; Financial Overview section (income/expenses/savings/available/budget status/recent activity); currency selector; All Currencies view converting to primary currency via rate table; primary-currency change updates display only, never rewrites history.
+- **What will be built:** Cards for available money, income, expenses, current/remaining budget, savings, spending breakdown, recent transactions, budget status, alerts, progress; Financial Overview section (income/expenses/savings/available/budget status/recent activity); currency selector; All Currencies view converting to primary currency via cached FX rates (with last-update/cached labels); primary-currency change updates display only, never rewrites history.
 - **Main user-facing functionality:** User opens dashboard in NGN; switches to USD; switches to All Currencies and sees consolidated NGN-equivalent view; changes primary currency in settings and sees dashboard follow without history changes.
 - **Backend/database work:** Dashboard aggregation endpoint honoring selected currency; All Currencies path uses conversion helper; missing-rate → "unavailable" label per metric, never fabricated totals.
 - **Files/modules expected:** `frontend/src/pages/Dashboard.tsx`, `frontend/src/components/*` (cards, selector); `backend/app/routers/dashboard.py`, `backend/app/reporting.py`.
@@ -234,7 +243,7 @@ Income vs expenses are rows in `transactions` distinguished by `type` (PRD treat
 ### Phase 11 — Spending insights and alerts
 
 - **Objective:** Simple spending understanding + user-controlled in-app budget alerts.
-- **What will be built:** Insights panel (totals by category, % of budget used, increase vs prior period — computed within same currency); alert preferences (50/80/100%, over-budget, off); in-app alert list.
+- **What will be built:** Insights panel (totals by category, % of budget used, increase vs prior period — computed within same currency); alert preferences (50/80/100%, over-budget, off); in-app alert list + dashboard badge (final decision).
 - **Main user-facing functionality:** User enables 80% alert, receives in-app alert at 80% of that budget's currency; can turn alerts off entirely.
 - **Backend/database work:** Insight computation (same-currency grouping); alert evaluation on transaction write; `alerts` table reads.
 - **Files/modules expected:** `frontend/src/pages/Insights.tsx`, `frontend/src/components/Alerts.tsx`; `backend/app/routers/{insights,alerts}.py`, `backend/app/alerting.py`.
@@ -270,7 +279,7 @@ Income vs expenses are rows in `transactions` distinguished by `type` (PRD treat
 ### Phase 14 — Final MVP review
 
 - **Objective:** Confirm scope, alignment, and readiness; capture post-MVP backlog.
-- **What will be built:** Scope-vs-PRD review; local performance sanity; open-decisions log; post-MVP backlog (live FX, extra currencies, shared budgets, etc. — all PRD-deferred).
+- **What will be built:** Scope-vs-PRD review; local performance sanity; open-decisions log; post-MVP backlog (extra currencies, shared budgets, etc. — all PRD-deferred; live FX is IN the MVP via the cached provider architecture, so it is not backlog).
 - **Main user-facing functionality:** None new; go/no-go decision.
 - **Backend/database work:** None except fixes for Phase 13 blockers.
 - **Files/modules expected:** Updated `IMPLEMENTATION_PLAN.md` status notes; backlog list.
@@ -284,9 +293,9 @@ Income vs expenses are rows in `transactions` distinguished by `type` (PRD treat
 ## 6. MVP build boundary
 
 **IN:**
-- Landing/welcome + signup/login/logout, JWT auth, per-user isolation.
+- Landing/welcome + signup/login/logout, JWT httpOnly-cookie auth, per-user isolation.
 - NGN default primary currency, user-changeable, history never rewritten.
-- NGN/USD/EUR/GBP only; editable local rate table; All Currencies in primary currency; missing rate → "unavailable."
+- NGN/USD/EUR/GBP only; external FX API (free-tier) → FastAPI → PostgreSQL cached rates; All Currencies in primary currency with last-update/cached labels; no valid rate → "unavailable."
 - Accounts/wallets with own currency; transactions preserve original currency; currency selectable at entry.
 - Budgets with own currency; same-currency matching only; guided budgeting in budget currency.
 - Savings/goals with own currency; no account required.
@@ -294,20 +303,28 @@ Income vs expenses are rows in `transactions` distinguished by `type` (PRD treat
 - Business Mode in same product/shell; business accounts with own currency; same-currency profit.
 
 **OUT (PRD-deferred, do not build):**
-- Live/automatic FX, extra currencies, cross-currency budget conversion, merged multi-currency totals without conversion, separate business product/dashboard, email/push notifications, payments, file storage, real-time, Redis, cloud hosting, external auth.
+- Extra currencies, cross-currency budget conversion, merged multi-currency totals without conversion, separate business product/dashboard, email/push notifications, payments, file storage, real-time, Redis, cloud hosting, external auth. Manual user rate-editing is not a normal feature (administrative/future only).
 
 ---
 
-## 7. Risks and areas needing clarification
+## 7. Finalized decisions (approved, no longer open)
 
-- **Conversion-rate sourcing:** PRD requires conversion for consolidated views but defines no rate source. MVP uses a manually maintained table — confirm who edits rates (user settings screen is the current assumption).
-- **Budget period semantics:** "Any amount, any period" needs concrete period inputs (start/end dates) — assumed; confirm during Phase 8.
-- **Alert surfacing:** In-app list + dashboard badge assumed sufficient — confirm during Phase 11.
-- **Scope creep:** Any request for live rates, extra currencies, or cross-currency budgets must go to post-MVP backlog, not silent inclusion.
+- **FX architecture:** External FX API → FastAPI → PostgreSQL cache → reporting. Provider replaceable via adapter. React never calls the provider; keys in env only.
+- **Rate-table editing:** Not a normal user setting. Provider-sourced cached rates only; manual correction is administrative/future.
+- **Budget period:** Start date + end date (final).
+- **Alert surfacing:** In-app alert list + dashboard badge (final).
+- **JWT storage:** Secure httpOnly cookie with appropriate Secure/SameSite/CORS/expiry handling (final).
+- **Account currency:** Immutable after creation (final); create another account for a different currency.
+
+## 8. Risks
+
+- **Scope creep:** Any request for extra currencies or cross-currency budgets goes to post-MVP backlog, not silent inclusion.
+- **Provider outage:** Handled by clearly-labeled cached rates; never invent rates.
+- **Key exposure:** FX keys stay in backend env only; verify by code search that React never calls the provider.
 
 ---
 
-## 8. PRD feature → phase mapping checklist
+## 9. PRD feature → phase mapping checklist
 
 | PRD feature | Phase |
 |---|---|
@@ -337,7 +354,7 @@ Income vs expenses are rows in `transactions` distinguished by `type` (PRD treat
 
 ---
 
-## 9. Development workflow (mandatory)
+## 10. Development workflow (mandatory)
 
 1. Implement **only one phase at a time**, in order 1→14.
 2. Run the phase's tests (pytest + Vitest as listed) plus all prior-phase regression tests.
