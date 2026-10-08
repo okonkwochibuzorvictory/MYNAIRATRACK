@@ -42,3 +42,32 @@ MYNAIRATRACK answers three key questions:
 ## Status
 
 Product Concept / Initial PRD — see `MYNAIRATRACK 001-PRODUCT REQUIREMENTS DOCUMENT.docx`.
+
+## Local development (Phase 1 skeleton)
+
+Prerequisites: Node.js LTS, Python 3.11+, local PostgreSQL.
+
+Frontend:
+
+```bash
+cd frontend
+cp .env.example .env
+npm install
+npm run dev
+```
+
+Backend:
+
+```bash
+cd backend
+cp .env.example .env
+python -m venv .venv
+.venv/Scripts/activate
+pip install -r requirements.txt
+uvicorn app.main:app --reload --port 8000
+```
+
+Health checks:
+
+- `GET http://localhost:8000/health` → `{"status": "ok", "phase": 1}`
+- `GET http://localhost:8000/db-check` → `{"ok": true}` when PostgreSQL is reachable.
