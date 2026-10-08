@@ -6,6 +6,7 @@ const PROTECTED = new Set([
   '#/settings',
   '#/accounts',
   '#/transactions',
+  '#/categories',
   '#/budgets',
   '#/goals',
   '#/insights',

@@ -7,6 +7,7 @@ const NAV = [
   { key: 'dashboard', label: 'Dashboard', icon: '◉', href: '#/dashboard' },
   { key: 'accounts', label: 'Accounts', icon: '▤', href: '#/accounts' },
   { key: 'transactions', label: 'Transactions', icon: '⇄', href: '#/transactions' },
+  { key: 'categories', label: 'Categories', icon: '▦', href: '#/categories' },
   { key: 'budgets', label: 'Budgets', icon: '◫', href: '#/budgets' },
   { key: 'goals', label: 'Goals', icon: '◎', href: '#/goals' },
   { key: 'insights', label: 'Insights', icon: '◍', href: '#/insights' },

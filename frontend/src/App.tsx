@@ -1,6 +1,7 @@
 import RequireAuth from './auth/RequireAuth'
 import { useHashRoute } from './auth/guard'
 import Accounts from './pages/Accounts'
+import Categories from './pages/Categories'
 import Dashboard from './pages/Dashboard'
 import Landing from './pages/Landing'
 import Login from './pages/Login'
@@ -46,6 +47,12 @@ export default function App() {
     return (
       <RequireAuth>
         <Transactions />
+      </RequireAuth>
+    )
+  if (route === '#/categories')
+    return (
+      <RequireAuth>
+        <Categories />
       </RequireAuth>
     )
   if (PLACEHOLDERS.has(route))
