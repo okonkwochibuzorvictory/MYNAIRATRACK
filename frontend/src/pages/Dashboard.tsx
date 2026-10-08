@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { getMe, type User } from '../auth/client'
 import AppShell from '../components/AppShell'
+import BalanceToggle from '../components/BalanceToggle'
 import RatesStatus from '../components/RatesStatus'
 import { Card, EmptyState, SectionHead, SoonBadge } from '../components/ui'
 import { fetchAccounts, type Account } from '../lib/accounts'
@@ -10,6 +11,7 @@ import {
   convertAmount,
   formatOriginal,
 } from '../lib/currency'
+import { DEFAULT_BALANCE_VISIBLE, displayBalance } from '../lib/privacy'
 
 const QUICK_ACTIONS = [
   { label: 'Add Income', sub: 'Record money in', icon: '+', href: '#/transactions' },
@@ -28,6 +30,7 @@ export default function Dashboard() {
   const [user, setUser] = useState<User | null>(null)
   const [accounts, setAccounts] = useState<Account[] | null>(null)
   const [filter, setFilter] = useState<string>('NGN')
+  const [showBalance, setShowBalance] = useState<boolean>(DEFAULT_BALANCE_VISIBLE)
   const [total, setTotal] = useState<TotalState>({
     loading: true,
     text: '—',
@@ -132,9 +135,12 @@ export default function Dashboard() {
       onFilterChange={setFilter}
     >
       <Card className="mt-balance">
-        <p className="mt-card-label">Total Balance</p>
+        <div className="mt-balance-top">
+          <p className="mt-card-label">Total Balance</p>
+          <BalanceToggle visible={showBalance} onToggle={() => setShowBalance((v) => !v)} />
+        </div>
         <p className="mt-balance-amount">
-          {total.loading ? `${symbol} …` : total.text}
+          {total.loading ? `${symbol} …` : displayBalance(total.text, showBalance)}
         </p>
         <p className="mt-balance-sub">{total.sub}</p>
       </Card>

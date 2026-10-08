@@ -1,7 +1,9 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import AppShell from '../components/AppShell'
+import BalanceToggle from '../components/BalanceToggle'
 import { Card, EmptyState, SectionHead } from '../components/ui'
 import { formatOriginal } from '../lib/currency'
+import { DEFAULT_BALANCE_VISIBLE, displayBalance } from '../lib/privacy'
 import {
   ACCOUNT_TYPES,
   EMPTY_ACCOUNT_FORM,
@@ -17,6 +19,7 @@ import {
 export default function Accounts() {
   const [accounts, setAccounts] = useState<Account[] | null>(null)
   const [error, setError] = useState('')
+  const [showBalances, setShowBalances] = useState<boolean>(DEFAULT_BALANCE_VISIBLE)
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState<Account | null>(null)
   const [form, setForm] = useState<AccountForm>({ ...EMPTY_ACCOUNT_FORM })
@@ -104,14 +107,20 @@ export default function Accounts() {
         action={
           accounts &&
           accounts.length > 0 && (
-            <button
-              type="button"
-              className="mt-btn"
-              style={{ width: 'auto' }}
-              onClick={() => openAdd(accounts[0]?.currency ?? 'NGN')}
-            >
-              Add Account
-            </button>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
+              <BalanceToggle
+                visible={showBalances}
+                onToggle={() => setShowBalances((v) => !v)}
+              />
+              <button
+                type="button"
+                className="mt-btn"
+                style={{ width: 'auto' }}
+                onClick={() => openAdd(accounts[0]?.currency ?? 'NGN')}
+              >
+                Add Account
+              </button>
+            </span>
           )
         }
       />
@@ -140,7 +149,9 @@ export default function Accounts() {
                 {a.is_business ? ' · Business' : ''}
               </p>
               <h2 style={{ margin: '0 0 0.25rem' }}>{a.name}</h2>
-              <p className="mt-stat-value">{formatOriginal(a.balance, a.currency)}</p>
+              <p className="mt-stat-value">
+                {displayBalance(formatOriginal(a.balance, a.currency), showBalances)}
+              </p>
               <p className="mt-stat-sub">Native balance · {a.currency}</p>
               <p style={{ display: 'flex', gap: '0.75rem', marginTop: '0.75rem' }}>
                 <button
