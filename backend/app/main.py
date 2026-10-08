@@ -17,11 +17,13 @@ load_dotenv()
 
 from .routers import accounts as accounts_router
 from .routers import auth as auth_router
+from .routers import categories as categories_router
 from .routers import currencies as currencies_router
 from .routers import exchange_rates as exchange_rates_router
+from .routers import transactions as transactions_router
 from .routers import users as users_router
 
-app = FastAPI(title="MYNAIRATRACK API (Phase 5)")
+app = FastAPI(title="MYNAIRATRACK API (Phase 6)")
 
 cors_origins = [
     origin.strip()
@@ -41,6 +43,8 @@ app.include_router(users_router.router)
 app.include_router(currencies_router.router)
 app.include_router(exchange_rates_router.router)
 app.include_router(accounts_router.router)
+app.include_router(transactions_router.router)
+app.include_router(categories_router.router)
 
 
 @app.get("/health")

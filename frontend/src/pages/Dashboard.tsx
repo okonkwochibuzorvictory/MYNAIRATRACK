@@ -12,30 +12,40 @@ import {
   formatOriginal,
 } from '../lib/currency'
 import { DEFAULT_BALANCE_VISIBLE, displayBalance } from '../lib/privacy'
+import { fetchTransactions, type Transaction } from '../lib/transactions'
 
 const QUICK_ACTIONS = [
-  { label: 'Add Income', sub: 'Record money in', icon: '+', href: '#/transactions' },
-  { label: 'Add Expense', sub: 'Record money out', icon: '−', href: '#/transactions' },
-  { label: 'Create Budget', sub: 'Plan your spending', icon: '◫', href: '#/budgets' },
-  { label: 'Add Goal', sub: 'Save toward something', icon: '◎', href: '#/goals' },
+  { label: 'Add Income', sub: 'Record money in', icon: '+', href: '#/transactions', soon: false },
+  { label: 'Add Expense', sub: 'Record money out', icon: '−', href: '#/transactions', soon: false },
+  { label: 'Create Budget', sub: 'Plan your spending', icon: '◫', href: '#/budgets', soon: true },
+  { label: 'Add Goal', sub: 'Save toward something', icon: '◎', href: '#/goals', soon: true },
 ]
 
-interface TotalState {
+interface MoneyState {
   loading: boolean
-  text: string
-  sub: string
+  totalText: string
+  totalSub: string
+  incomeText: string | null
+  expensesText: string | null
+  recent: Transaction[]
+}
+
+const EMPTY_MONEY: MoneyState = {
+  loading: true,
+  totalText: '—',
+  totalSub: 'Your balance will appear here once you add an account or transaction.',
+  incomeText: null,
+  expensesText: null,
+  recent: [],
 }
 
 export default function Dashboard() {
   const [user, setUser] = useState<User | null>(null)
   const [accounts, setAccounts] = useState<Account[] | null>(null)
+  const [txns, setTxns] = useState<Transaction[] | null>(null)
   const [filter, setFilter] = useState<string>('NGN')
   const [showBalance, setShowBalance] = useState<boolean>(DEFAULT_BALANCE_VISIBLE)
-  const [total, setTotal] = useState<TotalState>({
-    loading: true,
-    text: '—',
-    sub: 'Your balance will appear here once you add an account or transaction.',
-  })
+  const [money, setMoney] = useState<MoneyState>(EMPTY_MONEY)
 
   useEffect(() => {
     getMe()
@@ -47,82 +57,108 @@ export default function Dashboard() {
         window.location.hash = '#/login'
       })
     fetchAccounts().then(setAccounts).catch(() => setAccounts([]))
+    fetchTransactions().then(setTxns).catch(() => setTxns([]))
   }, [])
 
   useEffect(() => {
     let cancelled = false
-    if (accounts === null || !user) return
+    if (accounts === null || txns === null || !user) return
+
+    async function toPrimary(amount: string, currency: string, primary: string): Promise<number | null> {
+      if (currency === primary) return Number(amount)
+      try {
+        const r = await convertAmount(currency, primary, amount)
+        if (r.available && r.converted_amount !== null) return Number(r.converted_amount)
+        return null
+      } catch {
+        return null
+      }
+    }
 
     async function compute() {
-      const acctList = accounts
+      const acctList = accounts ?? []
+      const txnList = txns ?? []
       const me = user
-      if (acctList === null || !me) return
+      if (!me) return
 
-      if (acctList.length === 0) {
-        if (!cancelled)
-          setTotal({
-            loading: false,
-            text: '—',
-            sub: 'Your balance will appear here once you add an account or transaction.',
-          })
+      if (acctList.length === 0 && txnList.length === 0) {
+        if (!cancelled) setMoney({ ...EMPTY_MONEY, loading: false })
         return
       }
+
       if (filter !== ALL_CURRENCIES_VALUE) {
-        const matching = acctList.filter((a) => a.currency === filter)
-        if (matching.length === 0) {
-          if (!cancelled)
-            setTotal({
-              loading: false,
-              text: `${CURRENCY_SYMBOLS[filter] ?? ''} —`,
-              sub: `No accounts in ${filter} yet.`,
-            })
-          return
-        }
-        const sum = matching.reduce((s, a) => s + Number(a.balance), 0)
-        if (!cancelled)
-          setTotal({
-            loading: false,
-            text: formatOriginal(sum.toFixed(2), filter),
-            sub: `Across ${matching.length} account${matching.length === 1 ? '' : 's'} in ${filter}.`,
-          })
+        const matchingAccts = acctList.filter((a) => a.currency === filter)
+        const matchingTxns = txnList.filter((t) => t.currency === filter)
+        const income = matchingTxns
+          .filter((t) => t.type === 'income')
+          .reduce((s, t) => s + Number(t.amount), 0)
+        const expenses = matchingTxns
+          .filter((t) => t.type === 'expense')
+          .reduce((s, t) => s + Number(t.amount), 0)
+        const total = matchingAccts.reduce((s, a) => s + Number(a.balance), 0)
+        if (cancelled) return
+        const noneTracked = txnList.length === 0
+        setMoney({
+          loading: false,
+          totalText:
+            matchingAccts.length === 0
+              ? `${CURRENCY_SYMBOLS[filter] ?? ''} —`
+              : formatOriginal(total.toFixed(2), filter),
+          totalSub:
+            matchingAccts.length === 0
+              ? `No accounts in ${filter} yet.`
+              : `Across ${matchingAccts.length} account${matchingAccts.length === 1 ? '' : 's'} in ${filter}.`,
+          incomeText: noneTracked ? null : formatOriginal(income.toFixed(2), filter),
+          expensesText: noneTracked ? null : formatOriginal(expenses.toFixed(2), filter),
+          recent: [...matchingTxns]
+            .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : b.id - a.id))
+            .slice(0, 5),
+        })
         return
       }
-      // All Currencies: convert every native balance to the primary currency
-      // through the backend (React never calls the FX provider directly).
+
+      // All Currencies: consolidate to the primary currency through the backend.
       const primary = me.primary_currency
-      let sum = 0
-      const missing: string[] = []
+      let total = 0
+      let income = 0
+      let expenses = 0
+      let convertOk = true
       for (const a of acctList) {
-        if (a.currency === primary) {
-          sum += Number(a.balance)
-          continue
-        }
-        try {
-          const r = await convertAmount(a.currency, primary, a.balance)
-          if (cancelled) return
-          if (r.available && r.converted_amount !== null) sum += Number(r.converted_amount)
-          else if (!missing.includes(a.currency)) missing.push(a.currency)
-        } catch {
-          if (!cancelled && !missing.includes(a.currency)) missing.push(a.currency)
-        }
+        const v = await toPrimary(a.balance, a.currency, primary)
+        if (cancelled) return
+        if (v === null) convertOk = false
+        else total += v
+      }
+      for (const t of txnList) {
+        const v = await toPrimary(t.amount, t.currency, primary)
+        if (cancelled) return
+        if (v === null) convertOk = false
+        else if (t.type === 'income') income += v
+        else expenses += v
       }
       if (cancelled) return
-      setTotal({
+      const recent = [...txnList]
+        .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : b.id - a.id))
+        .slice(0, 5)
+      const noneTracked = txnList.length === 0
+      setMoney({
         loading: false,
-        text: formatOriginal(sum.toFixed(2), primary),
-        sub:
-          missing.length === 0
-            ? `All Currencies consolidated view · converted to ${primary} using cached rates.`
-            : `Converted to ${primary} using cached rates · conversion unavailable for ${missing.join(', ')} — not included.`,
+        totalText: formatOriginal(total.toFixed(2), primary),
+        totalSub: convertOk
+          ? `All Currencies consolidated view · converted to ${primary} using cached rates.`
+          : `Converted to ${primary} using cached rates · some amounts unavailable — not included.`,
+        incomeText: noneTracked ? null : formatOriginal(income.toFixed(2), primary),
+        expensesText: noneTracked ? null : formatOriginal(expenses.toFixed(2), primary),
+        recent,
       })
     }
 
-    setTotal((t) => ({ ...t, loading: true }))
+    setMoney((m) => ({ ...m, loading: true }))
     void compute()
     return () => {
       cancelled = true
     }
-  }, [accounts, user, filter])
+  }, [accounts, txns, user, filter])
 
   const symbol = CURRENCY_SYMBOLS[filter] ?? ''
 
@@ -140,22 +176,42 @@ export default function Dashboard() {
           <BalanceToggle visible={showBalance} onToggle={() => setShowBalance((v) => !v)} />
         </div>
         <p className="mt-balance-amount">
-          {total.loading ? `${symbol} …` : displayBalance(total.text, showBalance)}
+          {money.loading ? `${symbol} …` : displayBalance(money.totalText, showBalance)}
         </p>
-        <p className="mt-balance-sub">{total.sub}</p>
+        <p className="mt-balance-sub">{money.totalSub}</p>
       </Card>
 
       <div className="mt-grid-3">
-        {[
-          { label: 'Income', icon: '+', text: 'Income will appear here once you start tracking.' },
-          { label: 'Expenses', icon: '−', text: 'Expenses will appear here once you start tracking.' },
-          { label: 'Savings', icon: '◎', text: 'Savings will appear here once you set a target.' },
-        ].map((s) => (
-          <Card key={s.label}>
-            <p className="mt-card-label">{s.label}</p>
-            <EmptyState icon={s.icon} title={`No ${s.label.toLowerCase()} yet`} text={s.text} />
-          </Card>
-        ))}
+        <Card>
+          <p className="mt-card-label">Income</p>
+          {money.loading ? (
+            <p className="mt-stat-sub">Loading…</p>
+          ) : money.incomeText === null ? (
+            <EmptyState icon="+" title="No income yet" text="Income will appear here once you start tracking." />
+          ) : (
+            <>
+              <p className="mt-stat-value">{displayBalance(money.incomeText, showBalance)}</p>
+              <p className="mt-stat-sub">Recorded income{filter === ALL_CURRENCIES_VALUE ? ' · converted' : ` · in ${filter}`}</p>
+            </>
+          )}
+        </Card>
+        <Card>
+          <p className="mt-card-label">Expenses</p>
+          {money.loading ? (
+            <p className="mt-stat-sub">Loading…</p>
+          ) : money.expensesText === null ? (
+            <EmptyState icon="−" title="No expenses yet" text="Expenses will appear here once you start tracking." />
+          ) : (
+            <>
+              <p className="mt-stat-value">{displayBalance(money.expensesText, showBalance)}</p>
+              <p className="mt-stat-sub">Recorded spending{filter === ALL_CURRENCIES_VALUE ? ' · converted' : ` · in ${filter}`}</p>
+            </>
+          )}
+        </Card>
+        <Card>
+          <p className="mt-card-label">Savings</p>
+          <EmptyState icon="◎" title="No savings yet" text="Savings will appear here once you set a target." />
+        </Card>
       </div>
 
       <SectionHead title="Quick Actions" />
@@ -167,20 +223,48 @@ export default function Dashboard() {
             </span>
             <strong>
               {q.label}
-              <SoonBadge />
+              {q.soon && <SoonBadge />}
             </strong>
             <small>{q.sub}</small>
           </a>
         ))}
       </div>
 
-      <SectionHead title="Money Activity" />
+      <SectionHead title="Money Activity" action={<a href="#/transactions">View all</a>} />
       <Card>
-        <EmptyState
-          icon="◍"
-          title="No activity yet"
-          text="Your spending insights will appear here once you start tracking transactions."
-        />
+        {money.loading ? (
+          <p className="mt-stat-sub">Loading…</p>
+        ) : money.recent.length === 0 ? (
+          <EmptyState
+            icon="◍"
+            title="No activity yet"
+            text="Your spending insights will appear here once you start tracking transactions."
+          />
+        ) : (
+          <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+            {money.recent.map((t) => (
+              <li key={t.id} style={{ padding: '0.6rem 0', borderTop: '1px solid var(--mt-border)' }}>
+                <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'baseline' }}>
+                  <span
+                    style={{
+                      fontWeight: 800,
+                      color: t.type === 'income' ? 'var(--mt-success)' : 'var(--mt-error)',
+                    }}
+                  >
+                    {t.type === 'income' ? '+' : '−'}
+                  </span>
+                  <span style={{ flex: 1 }}>
+                    <strong>{t.category_name ?? 'Uncategorized'}</strong>
+                    <div className="mt-stat-sub">
+                      {t.date} · {t.account_name ?? ''}
+                    </div>
+                  </span>
+                  <strong>{displayBalance(formatOriginal(t.amount, t.currency), showBalance)}</strong>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
       </Card>
 
       <div className="mt-grid-2">

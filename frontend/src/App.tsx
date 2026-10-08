@@ -8,14 +8,9 @@ import Placeholder from './pages/Placeholder'
 import Settings from './pages/Settings'
 import Setup from './pages/Setup'
 import Signup from './pages/Signup'
+import Transactions from './pages/Transactions'
 
-const PLACEHOLDERS = new Set([
-  '#/transactions',
-  '#/budgets',
-  '#/goals',
-  '#/insights',
-  '#/business',
-])
+const PLACEHOLDERS = new Set(['#/budgets', '#/goals', '#/insights', '#/business'])
 
 export default function App() {
   const hash = useHashRoute()
@@ -45,6 +40,12 @@ export default function App() {
     return (
       <RequireAuth>
         <Accounts />
+      </RequireAuth>
+    )
+  if (route === '#/transactions')
+    return (
+      <RequireAuth>
+        <Transactions />
       </RequireAuth>
     )
   if (PLACEHOLDERS.has(route))

@@ -210,6 +210,14 @@ def delete_account(
     current_user: User = Depends(get_current_user),
 ) -> dict:
     account = get_owned_account(db, current_user.id, account_id)
+    txn_count = (
+        db.query(Transaction).filter(Transaction.account_id == account.id).count()
+    )
+    if txn_count > 0:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Account has transactions and cannot be deleted",
+        )
     db.delete(account)
     db.commit()
     return {"ok": True}

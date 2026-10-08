@@ -2,12 +2,6 @@ import AppShell from '../components/AppShell'
 import { EmptyState, SoonBadge } from '../components/ui'
 
 const COPY: Record<string, { title: string; heading: string; text: string; icon: string }> = {
-  transactions: {
-    title: 'Transactions',
-    heading: 'Transaction tracking is coming soon',
-    text: 'Quick and detailed income and expense entries will live here, always shown in their original currency.',
-    icon: '⇄',
-  },
   budgets: {
     title: 'Budgets',
     heading: 'Budgets are coming soon',
