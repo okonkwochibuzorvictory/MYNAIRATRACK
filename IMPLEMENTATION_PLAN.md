@@ -1,507 +1,348 @@
-# MYNAIRATRACK — Implementation Plan (MVP)
+# MYNAIRATRACK — Final Implementation Plan (MVP)
 
-> Derived strictly from `MYNAIRATRACK 001-PRODUCT REQUIREMENTS DOCUMENT.docx` (finalized).
-> Product decisions are taken from the PRD; anything not in the PRD is flagged as an open decision, not silently designed in.
-
----
-
-## Guiding principles
-
-- **Product-driven**: Every built feature maps to a PRD section (see §Mapping Checklist).
-- **No tech specs in the PRD**: Any technical choice (stack, schema, architecture) is an implementation decision — see §Product vs Implementation Decisions.
-- **Local first**: App and database run locally for now.
-- **No silent guesses**: Open product questions are listed in §Decisions Needed.
+> Source of truth: `MYNAIRATRACK 001-PRODUCT REQUIREMENTS DOCUMENT.docx` (finalized).
+> This plan is strictly derived from the PRD. No product features beyond the PRD are included.
+> No application code has been written. This document is the build blueprint, to be executed one phase at a time after approval.
 
 ---
 
-## Phase 1 — Project setup and foundation
-
-**Objective:** Establish a runnable, testable local project skeleton.
-
-**What will be built:**
-- Local dev repository layout (app + DB).
-- Build, run, and lint scripts.
-- Local configuration (dev).
-
-**Key deliverables:**
-- Working "hello world" of the app running locally.
-- Dev database provisioning script.
-- README update: how to run.
-
-**Dependencies:** None.
-
-**Verify:** App starts locally; DB connection check passes.
-
----
-
-## Phase 2 — Data and application structure
-
-**Objective:** Create the core local data model and application architecture that every later phase builds on.
-
-**What will be built:**
-- User entity.
-- Currency reference data (NGN, USD, EUR, GBP).
-- Account/wallet entity (name, currency, user, business/personal flag).
-- Transaction entity (amount, currency, type income/expense, category, date, payment method, note, account, user, business flag — original currency preserved).
-- Category entity (default categories + custom per user).
-- Budget entity (amount, currency, period, categories, user).
-- Savings target entity (amount, currency, user).
-- Financial goal entity (name, target amount, current amount, currency, deadline, user).
-- Business mode flag on user/account.
-- Migration scripts.
-
-**Key deliverables:**
-- DB schema migrations that run locally.
-- Seed data: the four MVP currencies and default categories.
-
-**Dependencies:** Phase 1.
-
-**Verify:** Migrations apply cleanly to a fresh local DB; seed data present.
-
----
-
-## Phase 3 — Authentication and user setup
-
-**Objective:** Let a user create an account and set onboarding basics.
-
-**What will be built:**
-- Local sign-up / sign-in (no external auth in MVP unless product decides otherwise — **[Flag]**).
-- Onboarding step: choose primary currency (defaults to NGN; may change in settings).
-- Settings screen for primary currency.
-
-**Key deliverables:**
-- User can register, log in, and set/change primary currency.
-
-**Dependencies:** Phase 2.
-
-**Verify:** Create user → primary currency is NGN by default → change to USD → dashboard currency changes (check in Phase 10).
-
-> **Product decision needed:** Does changing primary currency affect historical records? PRD says **no** — historical currencies stay fixed. This phase must store primary currency separately from entity currencies.
-
----
-
-## Phase 4 — Currency setup and multi-currency foundation
-
-**Objective:** Enable the PRD's multi-currency rules everywhere.
-
-**What will be built:**
-- MVP supported currency list (NGN/USD/EUR/GBP) — no auto-adding beyond these.
-- Every transaction, account, budget, savings target, and goal carries its own currency (already modeled in Phase 2; this phase enforces it in app logic).
-- Currency filter dropdown on shared screens (NGN/USD/EUR/GBP/All Currencies).
-- Conversion service for consolidated views only (no technical implementation assumed; product-level requirement: "All Currencies" view uses primary currency).
-
-**Key deliverables:**
-- Currency filter component.
-- Consolidated-view conversion helper (MVP-level).
-
-**Dependencies:** Phase 2, Phase 3.
-
-**Verify:** Can record two transactions in different currencies; "All Currencies" shows values in primary currency.
-
-> **Flag — Product decision:** What exchange rate is used for conversion? PRD is silent. Recommend confirming this with product before Phase 10.
-
----
-
-## Phase 5 — Accounts/wallets
-
-**Objective:** Introduce accounts/wallets with individual currencies.
-
-**What will be built:**
-- Create/view accounts (Main Bank Account — NGN, Dollar Account — USD, Euro Account — EUR).
-- Account can be marked Business or Personal (Business Mode accounts).
-- Account-scoped balance/overview.
-
-**Key deliverables:**
-- Account CRUD UI + DB writes.
-- Each account belongs to exactly one currency (MVP).
-
-**Dependencies:** Phase 4.
-
-**Verify:** Create three accounts in different currencies; balances remain in their own currency.
-
----
-
-## Phase 6 — Income and expense tracking
-
-**Objective:** Record income and expenses quickly and accurately.
-
-**What will be built:**
-- Quick entry (amount + category like "₦5,000 - Food").
-- Detailed entry (amount, category, date, payment method, note, account, currency — selected from supported currencies when needed).
-- Original currency/amount always preserved.
-- Transactions list filtered by currency.
-
-**Key deliverables:**
-- Transaction creation flows (income & expense).
-- Transaction history always displays original currency/amount.
-
-**Dependencies:** Phase 4, Phase 5.
-
-**Verify:** Record `Salary: +₦500,000 NGN`, `Freelance income: +$500 USD`, `Software expense: -$20 USD`, `Food expense: -₦30,000 NGN` — all retain original currency; no auto-replacement.
-
----
-
-## Phase 7 — Categories
-
-**Objective:** Provide default categories and allow custom ones.
-
-**What will be built:**
-- Default expense categories (per PRD).
-- Custom category creation.
-- Category management.
-
-**Key deliverables:**
-- Category settings/management screen.
-
-**Dependencies:** Phase 2.
-
-**Verify:** Create custom category; use it in a transaction.
-
----
-
-## Phase 8 — Budgets and guided budgeting
-
-**Objective:** Flexible budgets in any supported currency with strict currency matching.
-
-**What will be built:**
-- Budget creation: any amount, any period, any supported currency (defaults to primary currency, user can change).
-- Guided budgeting: category allocations in the budget's chosen currency.
-- Budget monitoring: spent vs remaining per budget, in the budget's currency.
-- **Rule (PRD):** expense counts toward a budget **only if** expense currency == budget currency.
-
-**Key deliverables:**
-- Budget CRUD with currency field.
-- Guided budget suggestions.
-- Monitoring view.
-
-**Dependencies:** Phase 4, Phase 6, Phase 7.
-
-**Verify:** Create NGN budget and a USD expense → no effect on NGN budget. Create USD budget and USD expense → budget updates.
-
-> **Flag — Product decision:** Should a budget over 14 days be allowed in multiple currencies simultaneously? PRD says budgets have one currency; clarifying this before Phase 8.
-
----
-
-## Phase 9 — Savings and financial goals
-
-**Objective:** Savings targets and goals with their own currency.
-
-**What will be built:**
-- Savings tracking: amount saved, progress, history, remaining toward target (in the savings currency).
-- Financial goals: name, target amount, current amount, deadline, suggested contribution (in goal currency).
-- **PRD:** a savings goal or financial goal does **not** require an account/wallet in that currency.
-
-**Key deliverables:**
-- Savings target screen.
-- Goal CRUD + progress.
-
-**Dependencies:** Phase 4, Phase 6.
-
-**Verify:** Create USD goal while having no USD account — allowed.
-
----
-
-## Phase 10 — Dashboard and financial overview
-
-**Objective:** One main dashboard; primary currency default; currency selector; All Currencies.
-
-**What will be built:**
-- Dashboard cards: total available money, income, expenses, current/remaining budget, savings, spending breakdown, recent transactions, budget status, alerts, progress.
-- Primary currency as default view.
-- Currency selector/filter (NGN/USD/EUR/GBP/All Currencies).
-- All Currencies consolidates in primary currency using conversion.
-- Changing primary currency must **not** rewrite historical transaction/account/budget/savings/goal currencies.
-
-**Key deliverables:**
-- Dashboard screen.
-- Financial Overview section (income/expenses/savings/available/budget status/recent activity).
-
-**Dependencies:** Phase 4, Phase 5, Phase 6, Phase 8, Phase 9, Phase 11 (optional alerts widget).
-
-**Verify:** With mixed-currency records, "All Currencies" shows consolidated values in primary currency; changing primary currency updates the display without rewriting history.
-
----
-
-## Phase 11 — Spending insights and alerts
-
-**Objective:** Help users understand spending and get optional budget alerts.
-
-**What will be built:**
-- Spending insights: simple summaries, category percentages, increases vs prior period.
-- Budget alerts: user-controlled thresholds (50/80/100%, over-budget, off).
-
-**Key deliverables:**
-- Insights panel.
-- Alert preferences UI.
-
-**Dependencies:** Phase 6, Phase 8.
-
-**Verify:** Toggle alerts off → no alerts. Set 80% threshold → alert appears when 80% of that budget's currency is used.
-
-> **Flag:** Insights percentages should be computed within the same currency. Confirm no cross-currency aggregation for insights in MVP.
-
----
-
-## Phase 12 — Business Mode
-
-**Objective:** Separate business tracking without a separate product or dashboard.
-
-**What will be built:**
-- Business mode activation.
-- Business accounts/wallets with their own currencies.
-- Business sales (income), expenses, profit tracking preserving transaction currency.
-- Business dashboard inside the same app, same dashboard shell (no separate product).
-
-**Key deliverables:**
-- Business Mode UI + DB flag/account types.
-- Sales/expenses/profit rollup per currency; profit = sales − expenses in the same currency (PRD does not require cross-currency profit conversion in MVP).
-
-**Dependencies:** Phase 5, Phase 6.
-
-**Verify:** Activate Business Mode → record business sale and expense in USD → profit shows in USD → personal accounts unaffected.
-
-> **Flag — Product decision:** PRD does not say whether business profit should be convertible to primary currency. MVP recommendation: only same-currency profit.
-
----
-
-## Phase 13 — Testing and validation
-
-**Objective:** Verify the MVP against PRD acceptance criteria.
-
-**What will be built:**
-- Test checklist (manual + automated as practical).
-- Traceability: each PRD requirement mapped to a verified behavior.
-
-**Key deliverables:**
-- Test results document.
-- Bug list triaged against PRD.
-
-**Dependencies:** All previous phases.
-
-**Verify:** Full checklist passes.
-
----
-
-## Phase 14 — Final MVP review
-
-**Objective:** Confirm MVP scope, product alignment, and readiness for release or iteration.
-
-**What will be built:**
-- Scope review vs PRD.
-- Performance threshold (local MVP).
-- Remaining open decisions log.
-
-**Key deliverables:**
-- Go/no-go checklist.
-- Post-MVP backlog (live FX, additional currencies, shared budgets, etc. — all deferred by PRD).
-
-**Dependencies:** Phase 13.
-
-**Verify:** Product owner signs off.
-
----
-
-## Dependencies between phases
-
-- P1 → P2 → P3 → P4
-- P4 → P5 → P6
-- P2/P7 can run in parallel after P2.
-- P6 → P8, P9
-- P8/P9/P10 → P10, P11
-- P5 + P6 → P12
-- P13 ← all
-- P14 ← P13
-
-## Important product decisions still needed before implementation
-
-1. **Exchange-rate source/value for "All Currencies" conversions** (e.g., fixed rate, user-editable rate, or none in MVP). PRD is silent.
-2. **Auth model**: simple local sign-in vs external provider (PRD implies account creation but doesn't specify).
-3. **Business profit currency handling**: same-currency only in MVP? (Recommended.)
-4. **Budget insight percentages**: same-currency grouping for MVP?
-5. **Exact wording of supported MVP currencies in UI** (labels/symbols).
-
-## Areas where the PRD provides insufficient implementation guidance (flagged, not guessed)
-
-- Conversion rate for consolidated reporting.
-- Whether budgets can span multiple currencies (PRD: each budget has one currency; simultaneous multi-currency budgets is a UX choice).
-- Alert delivery (in-app only, or also email/push — PRD only says "optional budget alerts").
-- Offline/online requirement for conversion (local app for now).
-- Default categories list is provided in PRD; confirm the exact English labels.
-
----
-
-## Technology & Tooling Decisions (MVP)
-
-> Context: MYNAIRATRACK MVP runs **locally** first. Where a tool has a free tier sufficient for MVP, that is what goes in the plan. Anything only needed at scale or after MVP is marked future.
-
-### 1. Frontend framework
-- **Recommended:** React (with Vite for local dev)
-- **Purpose:** User interface for dashboard, budgeting, accounts, etc.
-- **Why it fits:** Component-based, huge ecosystem, strong local dev experience with Vite, works later with any hosting.
-- **Free/free-tier:** Fully free and open-source.
-- **Would cost later:** Nothing by itself.
-- **MVP required:** Yes (for the app UI).
-
-### 2. Backend framework/runtime
-- **Recommended:** Python + FastAPI
-- **Purpose:** API server for accounts, transactions, budgets, savings, goals, business mode, users.
-- **Why it fits:** Simple, typed, fast to build, free; good local development.
-- **Free/free-tier:** Fully free.
-- **Would cost later:** Server hosting only.
-- **MVP required:** Yes.
-
-### 3. Database
-- **Recommended:** PostgreSQL
-- **Purpose:** Relational store for structured financial data and relationships (users, accounts, transactions, budgets, goals, currencies).
-- **Why it fits:** Open-source, robust ACID transactions, mature, excellent fit for finance-record relationships; free-tier hosted options exist when we move online.
-- **Free/free-tier:** Fully free locally; free hosted tiers available later.
-- **Would cost later:** Hosting/storage at scale.
-- **MVP required:** Yes.
-
-### 4. Authentication
-- **Recommended:** Local email + password with hashed passwords (bcrypt) and JWT sessions, implemented in our own API.
-- **Purpose:** Local user accounts.
-- **Why it fits:** PRD only says "create an account." No external auth needed at MVP. Simple, free, works locally.
-- **Free/free-tier:** Free.
-- **Would cost later:** If we move to hosted auth (e.g., Supabase Auth / Firebase Auth free tiers suffice for long; paid tiers only at scale).
-- **MVP required:** Yes.
-
-### 5. File storage
-- **Recommended:** None for MVP. Local disk only if receipts are ever added.
-- **Purpose:** Potential future receipts/attachments.
-- **Why it fits:** No storage requirement in PRD; adds cost/complexity to add early.
-- **Free option:** Local disk storage (free).
-- **Future option:** free-tier object storage (e.g., Supabase Storage / S3-compatible free tier).
-- **MVP required:** No.
-
-### 6. Email service
-- **Recommended:** None for MVP.
-- **Purpose:** Future account verification/password reset notifications.
-- **Why it fits:** No email requirement in PRD for MVP.
-- **Future free option:** Free-tier transactional email (e.g., Brevo free tier, Gmail SMTP for low volume).
-- **MVP required:** No.
-
-### 7. Payment platform
-- **Recommended:** None.
-- **Purpose:** MYNAIRATRACK does not process payments in the PRD.
-- **Why it fits:** Keeping it out avoids Stripe/PayPal fees and complexity.
-- **MVP required:** No.
-
-### 8. Real-time functionality
-- **Recommended:** None for MVP.
-- **Purpose:** Live dashboard updates.
-- **Why it fits:** PRD does not require real-time; a local web app with normal request/refresh is sufficient.
-- **Future option (free):** WebSocket via FastAPI if needed.
-- **MVP required:** No.
-
-### 9. Currency conversion/exchange-rate source
-- **Recommended (MVP):** A manually maintained exchange-rate table in the database (admin/user-editable rates for USD→NGN, EUR→NGN, GBP→NGN, etc.).
-- **Purpose:** Only for the "All Currencies" consolidated view and consolidated financial overview (report-level conversion).
-- **Why it fits:** PRD states conversion is needed for consolidated views but does NOT require live rates. A simple rate table avoids external APIs, cost, and complexity.
-- **Free/free-tier:** Free.
-- **Future option (free tier):** Free exchange-rate API tier (e.g., ExchangeRate.host / open.er-api.com) if live/auto rates are ever approved.
-- **MVP required:** Yes — but only as a simple editable rate table, not a live FX integration.
-
-### 10. Notifications/alerts
-- **Recommended (MVP):** In-app alert display (dashboard/alert list) driven by thresholds.
-- **Purpose:** Budget alerts at 50/80/100/over-budget, insight notices.
-- **Why it fits:** PRD says optional budget alerts; in-app alerts satisfy it without free-tier email/push dependencies.
-- **Future option:** Email/free-tier push notifications.
-- **MVP required:** Yes (in-app only).
-
-### 11. Hosting/deployment
-- **Recommended (MVP):** Run everything locally on the developer machine (app + PostgreSQL). No paid hosting.
-- **Why it fits:** PRD says "app and database should run locally for now."
-- **Future free-tier options:** Vercel (frontend), Render/Railway free tier (backend/Postgres) for a later public demo.
-- **Would cost later:** Hosting at public scale.
-- **MVP required:** No (not needed until deployed).
-
-### 12. Testing
-- **Recommended:** pytest (backend, FastAPI), Vitest (frontend React), and a few manual end-to-end checks.
-- **Why it fits:** All free/open-source, standard for this stack, covers the currency matching rules.
-- **MVP required:** Yes.
-
-### 13. Local development environment
-- **Recommended:** Local dev with Vite dev server + FastAPI dev server + local PostgreSQL; optionally Docker Compose for one-command DB startup (Docker Desktop is free for personal dev).
-- **Why it fits:** Matches "run locally now" and keeps zero costs.
-- **MVP required:** Yes (this is how we run the app).
-
----
-
-## Final recommended stack table
+## 1. Final technology stack (approved)
 
 | Area | Recommended Tool | MVP Required? | Free Option? | Reason |
 |---|---|---|---|---|
-| Frontend | React + Vite | Yes | Yes (OSS) | Component UI, local dev, later hostable anywhere |
-| Backend | Python + FastAPI | Yes | Yes (OSS) | Simple, typed, free API server |
-| Database | PostgreSQL | Yes | Yes (OSS / free tier) | Structured financial data relationships, free |
-| Authentication | Email + password, bcrypt + JWT | Yes | Yes | PRD just needs accounts; no external auth |
-| File storage | None (local disk only if ever needed) | No | Yes | No storage requirement in PRD |
-| Email service | None (future free tier: Brevo) | No | Yes | Not in PRD |
-| Payment platform | None | No | N/A | Not in PRD |
-| Real-time | None | No | N/A | Not in PRD; normal refresh is enough |
-| Currency conversion | Editable rate table in DB (MVP) | Yes (basic) | Yes | Satisfies consolidated views without live FX |
-| Notifications/alerts | In-app alerts | Yes (in-app) | Yes | Matches PRD's optional alert concept |
-| Hosting/deployment | Local only for now | No | Yes | PRD: run locally |
-| Testing | pytest + Vitest | Yes | Yes | Free, standard, covers currency rules |
-| Local dev environment | Local dev servers + local Postgres (Docker optional) | Yes | Yes | Zero-cost local development |
+| Frontend | React + Vite | Yes | Yes (OSS) | Component UI for dashboard/budgets/accounts; fast local dev; hostable anywhere later |
+| Backend | Python + FastAPI | Yes | Yes (OSS) | Simple typed API server; good local dev; fits finance CRUD |
+| Database | PostgreSQL | Yes | Yes (OSS, free locally) | Relational ACID store for structured financial data and relationships |
+| Authentication | Email + password, Argon2/pwdlib hashing, JWT sessions | Yes | Yes (OSS) | Secure, simple, free; PRD only requires account creation |
+| Currency conversion | PostgreSQL-backed manually maintainable exchange-rate table | Yes (basic only) | Yes | PRD requires conversion only for consolidated reporting; no live FX in MVP |
+| Notifications/alerts | In-app alerts only | Yes (in-app) | Yes | PRD requires optional budget alerts; no email/push needed |
+| Testing | pytest (backend), Vitest (frontend) | Yes | Yes (OSS) | Standard, free; covers currency rules |
+| Local dev environment | Local Vite dev server + local FastAPI server + local PostgreSQL; Docker optional | Yes | Yes | Zero-cost local development |
+| Version control | Git + GitHub | Yes | Yes | Already in use |
+| File storage | None | No | N/A | No PRD requirement |
+| Email service | None | No | N/A | No PRD requirement |
+| Payment platform | None | No | N/A | PRD has no payments |
+| Real-time/WebSocket | None | No | N/A | No PRD requirement |
+| External auth providers | None | No | N/A | Local auth is sufficient |
+| Live FX APIs | None (explicitly excluded) | No | N/A | PRD excludes live/automatic rates from MVP |
+| Redis / cache | None | No | N/A | Unnecessary complexity for local MVP |
+| Cloud hosting | None during initial development (local only) | No | N/A | PRD: run locally for now |
+
+**Explicitly excluded from MVP** (future only if a real product requirement emerges): payment processing, file storage, email infrastructure, real-time/WebSocket infrastructure, external authentication providers, live FX APIs, Redis, cloud hosting.
+
+### Product decisions vs implementation decisions
+
+**Product decisions (from PRD, not negotiable in implementation):**
+- Nigerian-first positioning; NGN default primary currency; user-selectable primary currency.
+- MVP currencies: NGN, USD, EUR, GBP. Additional currencies future only.
+- Accounts/wallets, transactions, budgets, savings, goals each carry their own currency.
+- Original transaction amount/currency always preserved; history never rewritten.
+- One dashboard, primary-currency default, currency selector/filter, All Currencies consolidated view in primary currency.
+- MVP budget rule: expense counts toward a budget only on same-currency match. No cross-currency budget conversion.
+- Business profit within same currency. No raw addition of different currencies without conversion.
+- In-app budget alerts only. Multiple income sources. Personal finance + Business Mode in one product.
+
+**Implementation decisions (technical, chosen to serve the PRD at zero cost):**
+- React + Vite / FastAPI / PostgreSQL / local JWT auth / editable rate table / pytest + Vitest / local-only run.
+- Exact file layout, API shapes, and schema column names are implementation detail and may evolve within a phase, but must not change product behavior.
 
 ---
 
-## Recommended implementation order
+## 2. Local development setup
 
-1. Phase 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9 → 11 → 10 → 12 → 13 → 14
-   (Phase 10 intentionally after Phase 9; Phase 11 before 10 so the dashboard can read alert state.)
-2. Minimum viable verification per phase: unit/integration tests on the currency rules, one end-to-end scenario per phase.
+Keep setup as simple as reasonably possible. Docker is optional, not mandatory.
 
-## MVP build boundary
+**Frontend (React + Vite):**
+- Node.js LTS installed locally. `npm install`, then `npm run dev` starts Vite dev server (default `http://localhost:5173`).
+- Env var: `VITE_API_URL` (e.g. `http://localhost:8000`) — how frontend reaches the backend. No other frontend env required for MVP.
 
-**IN MVP:**
-- NGN/USD/EUR/GBP only.
-- NGN default primary currency; user-changeable.
-- One dashboard + currency selector + All Currencies view.
-- Accounts/wallets with own currency.
-- Transactions preserve original currency.
-- Budgets with own currency; expense counts only on same-currency match.
-- Savings/goals with own currency (no account required).
-- Guided budgeting in chosen budget currency.
-- Business Mode inside the same dashboard, business accounts with own currency; sales/expenses/profit in original currency.
-- No live/automatic exchange rates.
+**Backend (Python + FastAPI):**
+- Python 3.11+ with virtualenv. `pip install -r requirements.txt`, then `uvicorn app.main:app --reload --port 8000`.
+- Env vars (via local `.env`, never committed): `DATABASE_URL` (e.g. `postgresql://mynaira:mynaira@localhost:5432/mynairatrack`), `JWT_SECRET` (random local string), `JWT_EXPIRE_MINUTES` (e.g. 60), `CORS_ORIGINS` (e.g. `http://localhost:5173`).
 
-**OUT OF MVP (deferred per PRD):**
-- Live FX APIs / automatic rate updates.
-- Currencies beyond NGN/USD/EUR/GBP.
-- Cross-currency budget conversion.
-- Shared budgets, family finance, debt tracking, subscriptions, advanced business reporting.
+**PostgreSQL (local):**
+- Install PostgreSQL locally (or optionally `docker compose up db` if Docker is available).
+- Create database `mynairatrack` and a dev user. Run migrations (Phase 2) to create tables and seed currencies/categories.
+- Backend connects via `DATABASE_URL` using a standard Postgres driver (psycopg). No connection pooling service needed for local MVP.
 
-## Risks / clarifications
+**How pieces communicate:**
+- Browser → Vite dev server (static + HMR) → `fetch(VITE_API_URL/...)` → FastAPI → PostgreSQL via `DATABASE_URL`.
+- Auth: frontend stores JWT in memory (or httpOnly cookie alternative — decided in Phase 3) and sends `Authorization: Bearer <token>`; backend validates and scopes every query to the authenticated user.
 
-- **Scope creep**: "All Currencies" plus conversion can tempt FX features into MVP — keep the conversion simple and document it.
-- **Data model**: decide once that every financial entity carries its own currency; avoid retrofits later.
-- **UX confusion**: primary vs account vs transaction vs budget vs goal currency must be visible; the Currency Concepts block in the PRD should drive UI copy.
-- **Currency matching rule** must be enforced in tests before Phase 10 dashboard totals are trusted.
+---
 
-## Feature → Phase mapping checklist
+## 3. Database entities (PostgreSQL)
+
+Only tables needed by the PRD. No extra tables for complexity.
+
+- `users` — id, name, email (unique), password_hash (Argon2), primary_currency (default NGN), timestamps.
+- `currencies` — code (NGN/USD/EUR/GBP), name, symbol. Seed table, read-only in normal use.
+- `exchange_rates` — from_currency, to_currency, rate, updated_at. Manually maintainable. Used ONLY for consolidated reporting. If a required rate is missing, the system must show "conversion unavailable," never a silently wrong number.
+- `accounts` — id, user_id, name, currency, is_business (bool), timestamps. One currency per account (MVP).
+- `categories` — id, user_id (nullable for defaults), name, type (income/expense), is_default. Defaults seeded from PRD; users can add custom.
+- `transactions` — id, user_id, account_id, type (income/expense/sale), amount (numeric, never negative logic errors), currency (original, immutable), category_id, date, payment_method, note, is_business. Original amount+currency never updated by conversion or primary-currency change.
+- `budgets` — id, user_id, name, amount, currency (own currency, defaults to primary at creation), period_start, period_end, timestamps.
+- `budget_allocations` — id, budget_id, category_id, allocated_amount (in budget currency). Used by flexible + guided budgeting.
+- `savings_targets` — id, user_id, name, target_amount, current_amount, currency (own currency; no account required), timestamps.
+- `goals` — id, user_id, name, target_amount, current_amount, currency (own currency; no account required), deadline, suggested_contribution, timestamps.
+- `alerts` — id, user_id, budget_id (nullable), type (threshold_50/80/100/over/insight), message, is_read, created_at. In-app only.
+
+Income vs expenses are rows in `transactions` distinguished by `type` (PRD treats income sources and expense categories separately in UI but they share the transaction concept; separate tables would add complexity without product benefit). Business sales are `transactions` with `type=sale` + `is_business=true` linked to a business account.
+
+---
+
+## 4. Authentication requirements (core MVP)
+
+**User flow:** Landing/Welcome page → Sign Up or Log In → Authentication → Basic user setup (choose primary currency, defaults NGN) → Main Dashboard.
+
+- **Public (unauthenticated):** landing/welcome page, sign-up page, login page only.
+- **Protected (authenticated):** dashboard and all financial data pages. Unauthenticated API calls return 401.
+- **Registration:** name, email, password. Validate email format + uniqueness; validate password (minimum length 8, and require at least one letter and one number — simple, documented rule). Hash with Argon2 via pwdlib before storing. Never store or log plaintext passwords.
+- **Login:** email + password → verify Argon2 hash → issue JWT. Generic error message ("Invalid email or password") to avoid user enumeration.
+- **Password hashing:** Argon2id via pwdlib. No bcrypt, no plaintext, no reversible encryption.
+- **JWT/session handling:** signed JWT containing user id + expiry. Sent as `Authorization: Bearer`. Backend validates signature + expiry on every protected endpoint.
+- **Token/session expiration:** access token expiry (e.g. 60 minutes, configurable via `JWT_EXPIRE_MINUTES`). Expired token → 401 → frontend redirects to login.
+- **Protected routes:** frontend route guard (redirect to login if no valid token) + backend dependency that rejects unauthenticated requests.
+- **Logout:** frontend discards token (and calls logout endpoint if implemented); logged-out user cannot access protected routes without logging in again.
+- **Authentication errors:** consistent JSON errors (401 invalid/expired token, 400 validation, 409 email taken, 422 malformed input). No stack traces to client.
+- **User-specific data access:** every financial query filtered by `user_id` from the token. Users can only access/modify their own records (enforced in backend, tested per phase). No cross-user reads/writes.
+
+---
+
+## 5. Implementation phases (final, 1–14)
+
+### Phase 1 — Project setup and foundation
+
+- **Objective:** Runnable local skeleton: frontend + backend + database wiring, no product features yet.
+- **What will be built:** Repo layout (`frontend/`, `backend/`, docs); Vite React scaffold; FastAPI scaffold with `/health` and `/db-check`; env template files; run instructions in README.
+- **Main user-facing functionality:** None yet (developer-facing only).
+- **Backend/database work:** FastAPI app boots; connects to local PostgreSQL; `/db-check` confirms connectivity.
+- **Files/modules expected:** `frontend/` (Vite scaffold, `src/App.tsx`), `backend/` (`app/main.py`, `requirements.txt`, `.env.example`), `README.md` run section.
+- **Dependencies/prerequisites:** None. Requires Node LTS, Python 3.11+, local PostgreSQL.
+- **Verification criteria:** `npm run dev` serves frontend; `uvicorn` serves backend; `/health` returns OK; `/db-check` returns OK.
+- **Tests:** Smoke checks only (both servers respond). No pytest/Vitest suites required yet.
+- **Gate to next phase:** Both servers run locally from documented commands; DB connectivity proven.
+
+### Phase 2 — Data and application structure
+
+- **Objective:** Core data model + migrations + seed data everything later builds on.
+- **What will be built:** All tables in §3; migration runner; seed of 4 currencies + PRD default categories.
+- **Main user-facing functionality:** None directly (enables all later phases).
+- **Backend/database work:** Migration scripts; currency/category seed; numeric amount columns with check constraints (non-negative); foreign keys user→everything.
+- **Files/modules expected:** `backend/app/models.py`, `backend/app/db.py`, `backend/migrations/`, `backend/seed.py`.
+- **Dependencies:** Phase 1 complete.
+- **Verification criteria:** Fresh local DB → migrations apply cleanly → 4 currencies + default categories present.
+- **Tests:** pytest: migration idempotency, seed correctness, currency codes limited to NGN/USD/EUR/GBP.
+- **Gate:** Schema review approved; no product tables missing; no unnecessary tables added.
+
+### Phase 3 — Authentication and user setup
+
+- **Objective:** Secure local accounts + onboarding (primary currency, default NGN) + settings to change it.
+- **What will be built:** Landing/welcome page; sign-up, login, logout; basic user setup screen (choose primary currency); settings screen to change primary currency; protected-route guard.
+- **Main user-facing functionality:** Visitor sees landing → signs up / logs in → picks primary currency (NGN default) → reaches empty dashboard shell.
+- **Backend/database work:** `users` CRUD; Argon2 hashing; JWT issue/validate/refresh-or-relogin; expiry enforcement; auth error responses; per-user scoping helper used by all future endpoints.
+- **Files/modules expected:** `frontend/src/pages/{Landing,Signup,Login,Setup,Settings}.tsx`, `frontend/src/auth/*` (guard, token handling); `backend/app/auth.py`, `backend/app/routers/auth.py`, `backend/app/routers/users.py`.
+- **Dependencies:** Phase 2 (users table).
+- **Verification criteria:** Register → login → JWT works → protected endpoints reject anonymous calls → change primary currency persists → existing records untouched (no records exist yet; rule stored for later phases).
+- **Tests:** pytest: registration validation, duplicate email rejected, wrong password rejected, expired token rejected, user A cannot read user B data. Vitest: route guard redirects unauthenticated users to login.
+- **Gate:** Full auth flow works locally; per-user isolation proven; primary-currency default NGN confirmed.
+
+### Phase 4 — Currency foundation
+
+- **Objective:** Enforce PRD multi-currency rules app-wide before any money is recorded.
+- **What will be built:** Supported-currency list (NGN/USD/EUR/GBP only); currency field on every money form; shared currency selector/filter component (NGN/USD/EUR/GBP/All Currencies); `exchange_rates` admin-editable table; conversion helper used ONLY for consolidated views; missing-rate behavior (show "unavailable," never guess).
+- **Main user-facing functionality:** User sees currency codes on forms; can switch filter including All Currencies; can view/edit local conversion rates (simple settings screen).
+- **Backend/database work:** Currency validation on all writes (reject anything outside the 4); rate table CRUD (authenticated user scope or single local set — decided in phase, documented); conversion function `convert(amount, from, to)` that raises/returns-unavailable when rate missing.
+- **Files/modules expected:** `frontend/src/components/CurrencySelector.tsx`, `frontend/src/lib/currency.ts`; `backend/app/currency.py`, `backend/app/routers/currencies.py`, `backend/app/routers/exchange_rates.py`.
+- **Dependencies:** Phases 2, 3.
+- **Verification criteria:** Unsupported currency (e.g. JPY) rejected; conversion with missing rate shows unavailable, not a number.
+- **Tests:** pytest: reject unsupported currency; conversion correctness with seeded test rates; missing-rate path. Vitest: selector renders 4 + All.
+- **Gate:** Currency rules enforced at API level; no feature can save money without a valid MVP currency.
+
+### Phase 5 — Accounts/wallets
+
+- **Objective:** Accounts/wallets with exactly one currency each (personal or business flag).
+- **What will be built:** Account list/create/edit; each account has name + currency + personal/business flag; per-account balance in its own currency.
+- **Main user-facing functionality:** User creates e.g. Main Bank (NGN), Dollar Account (USD); sees balances per account in native currency.
+- **Backend/database work:** `accounts` CRUD scoped to user; currency immutable after creation in MVP (prevents accidental history rewrites — documented); balance computed from transactions in same currency only.
+- **Files/modules expected:** `frontend/src/pages/Accounts.tsx`; `backend/app/routers/accounts.py`.
+- **Dependencies:** Phase 4.
+- **Verification criteria:** Three accounts in three currencies each show correct native-currency balance; mixed-currency transactions never merged into one balance.
+- **Tests:** pytest: account requires valid currency; balance sums only same-currency transactions; cross-user access denied. Vitest: account form validates currency.
+- **Gate:** Accounts work in multiple currencies with no silent merging.
+
+### Phase 6 — Income and expense tracking
+
+- **Objective:** Fast, correct recording of income (multiple sources) and expenses with original currency preserved.
+- **What will be built:** Quick entry (amount + category); detailed entry (amount, currency selectable from supported list when necessary, category, date, payment method, note, account); transaction history always showing original currency/amount; currency filter on history.
+- **Main user-facing functionality:** User records Salary +₦500,000 NGN, Freelance +$500 USD, Software −$20 USD, Food −₦30,000 NGN; history shows each in its original currency.
+- **Backend/database work:** `transactions` CRUD; currency + amount immutable once created (no edit path that rewrites currency in MVP — new transaction + delete instead, documented); account must belong to user; category must belong to user or be default.
+- **Files/modules expected:** `frontend/src/pages/Transactions.tsx`, `frontend/src/components/TransactionForm.tsx`; `backend/app/routers/transactions.py`.
+- **Dependencies:** Phases 4, 5 (accounts), 7 may parallel-track categories but Phase 6 needs at least seeded defaults.
+- **Verification criteria:** All four example transactions save with original currency; editing amount never changes another record; history filter by currency works.
+- **Tests:** pytest: original currency preserved; invalid currency rejected; user isolation. Vitest: quick-entry and detailed-entry flows.
+- **Gate:** Transaction recording is reliable and currency-faithful.
+
+### Phase 7 — Categories
+
+- **Objective:** PRD default categories + user custom categories.
+- **What will be built:** Category list, create/edit custom categories, assign type income/expense.
+- **Main user-facing functionality:** User adds custom category (e.g. "Airtime") and uses it in a transaction.
+- **Backend/database work:** `categories` CRUD; defaults seeded and non-deletable; custom categories per user.
+- **Files/modules expected:** `frontend/src/pages/Categories.tsx`; `backend/app/routers/categories.py`.
+- **Dependencies:** Phase 2 (may run any time after Phase 2; needed by Phase 8).
+- **Verification criteria:** Custom category usable in Phase 6 forms; defaults always present.
+- **Tests:** pytest: defaults seeded; user cannot delete defaults; custom category scoped to user. Vitest: create-category flow.
+- **Gate:** Category management complete and wired into transaction forms.
+
+### Phase 8 — Budgets and guided budgeting
+
+- **Objective:** Flexible + guided budgets, each in one chosen currency, with strict same-currency matching.
+- **What will be built:** Budget create (any amount, any period, any of the 4 currencies; defaults to primary, changeable); category allocations; guided-budget suggestions in the budget's currency; monitoring view (budgeted vs spent vs remaining, in budget currency).
+- **Main user-facing functionality:** User creates ₦100,000 / 14-day budget with allocations; creates a guided budget in USD; watches spent/remaining update as same-currency expenses are recorded.
+- **Backend/database work:** `budgets` + `budget_allocations`; spend computation counts ONLY expenses where `expense.currency == budget.currency`; cross-currency expenses ignored (no conversion) per PRD.
+- **Files/modules expected:** `frontend/src/pages/Budgets.tsx`, `frontend/src/components/GuidedBudget.tsx`; `backend/app/routers/budgets.py`, `backend/app/budgeting.py`.
+- **Dependencies:** Phases 4, 6, 7.
+- **Verification criteria:** NGN expense updates NGN budget, leaves USD budget untouched; USD expense updates USD budget only.
+- **Tests:** pytest: same-currency matching rule (core regression test); guided allocations sum to budget; period handling. Vitest: budget creation with currency picker; monitoring display.
+- **Gate:** Budget currency rule proven by tests; no cross-currency leakage.
+
+### Phase 9 — Savings and financial goals
+
+- **Objective:** Savings targets and goals, each with own currency, no account required.
+- **What will be built:** Savings tracker (saved, progress, history, remaining in savings currency); goals (name, target, current, deadline, suggested contribution in goal currency).
+- **Main user-facing functionality:** User creates a $2,000 USD goal with no USD account — allowed; tracks progress in USD.
+- **Backend/database work:** `savings_targets`, `goals` CRUD; currency required; no account-link requirement enforced (absence of requirement is the rule).
+- **Files/modules expected:** `frontend/src/pages/{Savings,Goals}.tsx`; `backend/app/routers/{savings,goals}.py`.
+- **Dependencies:** Phase 4 (Phase 6 history optional for progress entries).
+- **Verification criteria:** Goal in a currency with no matching account saves and displays correctly.
+- **Tests:** pytest: goal without matching account allowed; progress math in goal currency. Vitest: goal creation flow.
+- **Gate:** Savings/goals fully currency-independent from accounts.
+
+### Phase 10 — Dashboard and financial overview
+
+- **Objective:** ONE dashboard, primary-currency default, selector/filter, All Currencies consolidated view. No separate per-currency dashboards.
+- **What will be built:** Cards for available money, income, expenses, current/remaining budget, savings, spending breakdown, recent transactions, budget status, alerts, progress; Financial Overview section (income/expenses/savings/available/budget status/recent activity); currency selector; All Currencies view converting to primary currency via rate table; primary-currency change updates display only, never rewrites history.
+- **Main user-facing functionality:** User opens dashboard in NGN; switches to USD; switches to All Currencies and sees consolidated NGN-equivalent view; changes primary currency in settings and sees dashboard follow without history changes.
+- **Backend/database work:** Dashboard aggregation endpoint honoring selected currency; All Currencies path uses conversion helper; missing-rate → "unavailable" label per metric, never fabricated totals.
+- **Files/modules expected:** `frontend/src/pages/Dashboard.tsx`, `frontend/src/components/*` (cards, selector); `backend/app/routers/dashboard.py`, `backend/app/reporting.py`.
+- **Dependencies:** Phases 4, 5, 6, 8, 9 (alerts widget reads Phase 11 data if present; dashboard reserves the slot even if Phase 11 lands after).
+- **Verification criteria:** Mixed-currency data → single-currency view shows only matching records; All Currencies shows converted consolidated values; primary-currency switch changes display, history currencies unchanged in DB.
+- **Tests:** pytest: no raw addition across currencies; All Currencies uses primary as target; history immutability after primary change. Vitest: selector behavior; All Currencies rendering.
+- **Gate:** Dashboard is the single source of truth and obeys every currency rule.
+
+### Phase 11 — Spending insights and alerts
+
+- **Objective:** Simple spending understanding + user-controlled in-app budget alerts.
+- **What will be built:** Insights panel (totals by category, % of budget used, increase vs prior period — computed within same currency); alert preferences (50/80/100%, over-budget, off); in-app alert list.
+- **Main user-facing functionality:** User enables 80% alert, receives in-app alert at 80% of that budget's currency; can turn alerts off entirely.
+- **Backend/database work:** Insight computation (same-currency grouping); alert evaluation on transaction write; `alerts` table reads.
+- **Files/modules expected:** `frontend/src/pages/Insights.tsx`, `frontend/src/components/Alerts.tsx`; `backend/app/routers/{insights,alerts}.py`, `backend/app/alerting.py`.
+- **Dependencies:** Phases 6, 8.
+- **Verification criteria:** Alerts fire at correct thresholds in budget currency; off means silent; insights never mix currencies in one percentage.
+- **Tests:** pytest: threshold firing (50/80/100/over), off-state silence, same-currency grouping. Vitest: preferences UI + alert list.
+- **Gate:** Insights/alerts correct and currency-safe.
+
+### Phase 12 — Business Mode
+
+- **Objective:** Business tracking inside the same product and dashboard shell. No separate product, no separate dashboard.
+- **What will be built:** Business Mode toggle; business accounts with own currencies; business sales/income + expenses + profit views preserving transaction currency; personal vs business separation.
+- **Main user-facing functionality:** User activates Business Mode → records USD sale and USD expense → sees USD profit; personal accounts unaffected.
+- **Backend/database work:** `is_business` flag enforcement; profit = sales − expenses within same currency only (no cross-currency profit conversion in MVP).
+- **Files/modules expected:** `frontend/src/pages/Business.tsx`; reuse of account/transaction routers with business scoping.
+- **Dependencies:** Phases 5, 6.
+- **Verification criteria:** Business and personal records never mix; profit shown per currency; mixed-currency business activity shows per-currency profits, not one merged number.
+- **Tests:** pytest: personal/business isolation; same-currency profit math; mixed-currency separation. Vitest: Business Mode activation flow.
+- **Gate:** Business Mode works multi-currency without forking the product.
+
+### Phase 13 — Testing and validation
+
+- **Objective:** Prove the MVP meets the PRD.
+- **What will be built:** Full traceability checklist (PRD requirement → phase → test → result); bug triage; regression run of all currency-rule tests.
+- **Main user-facing functionality:** None new; confidence in what exists.
+- **Backend/database work:** Test fixtures with mixed-currency data; missing-rate scenarios.
+- **Files/modules expected:** `backend/tests/`, `frontend/src/**/*.test.*`, `TEST_CHECKLIST.md` (results log).
+- **Dependencies:** All phases 1–12.
+- **Verification criteria:** Every checklist row passes; currency-rule tests green; auth isolation tests green.
+- **Tests:** Full pytest + Vitest suites + scripted manual end-to-end (signup → accounts → transactions → budgets → goals → dashboard → Business Mode).
+- **Gate:** Zero open PRD-blocking defects.
+
+### Phase 14 — Final MVP review
+
+- **Objective:** Confirm scope, alignment, and readiness; capture post-MVP backlog.
+- **What will be built:** Scope-vs-PRD review; local performance sanity; open-decisions log; post-MVP backlog (live FX, extra currencies, shared budgets, etc. — all PRD-deferred).
+- **Main user-facing functionality:** None new; go/no-go decision.
+- **Backend/database work:** None except fixes for Phase 13 blockers.
+- **Files/modules expected:** Updated `IMPLEMENTATION_PLAN.md` status notes; backlog list.
+- **Dependencies:** Phase 13.
+- **Verification criteria:** Product owner sign-off against MVP boundary (§6).
+- **Tests:** Re-run of Phase 13 gate suite.
+- **Gate:** Explicit approval to call the MVP complete.
+
+---
+
+## 6. MVP build boundary
+
+**IN:**
+- Landing/welcome + signup/login/logout, JWT auth, per-user isolation.
+- NGN default primary currency, user-changeable, history never rewritten.
+- NGN/USD/EUR/GBP only; editable local rate table; All Currencies in primary currency; missing rate → "unavailable."
+- Accounts/wallets with own currency; transactions preserve original currency; currency selectable at entry.
+- Budgets with own currency; same-currency matching only; guided budgeting in budget currency.
+- Savings/goals with own currency; no account required.
+- One dashboard + selector + financial overview; in-app insights/alerts (50/80/100/over/off).
+- Business Mode in same product/shell; business accounts with own currency; same-currency profit.
+
+**OUT (PRD-deferred, do not build):**
+- Live/automatic FX, extra currencies, cross-currency budget conversion, merged multi-currency totals without conversion, separate business product/dashboard, email/push notifications, payments, file storage, real-time, Redis, cloud hosting, external auth.
+
+---
+
+## 7. Risks and areas needing clarification
+
+- **Conversion-rate sourcing:** PRD requires conversion for consolidated views but defines no rate source. MVP uses a manually maintained table — confirm who edits rates (user settings screen is the current assumption).
+- **Budget period semantics:** "Any amount, any period" needs concrete period inputs (start/end dates) — assumed; confirm during Phase 8.
+- **Alert surfacing:** In-app list + dashboard badge assumed sufficient — confirm during Phase 11.
+- **Scope creep:** Any request for live rates, extra currencies, or cross-currency budgets must go to post-MVP backlog, not silent inclusion.
+
+---
+
+## 8. PRD feature → phase mapping checklist
 
 | PRD feature | Phase |
 |---|---|
-| Product overview / currency concept | P4 |
-| Target users / business owners | P3, P12 |
-| Core experience chain | All |
-| Dashboard (one dashboard, selector, All Currencies) | P10 |
-| Income tracking (multiple sources, original currency) | P6 |
-| Expense tracking (quick + detailed, original currency) | P6 |
-| Flexible budgeting (any amount/period, own currency, same-currency rule) | P8 |
+| Landing/welcome + account creation | P1, P3 |
+| Auth (register/login/hash/validation/JWT/expiry/protected routes/logout/errors/isolation) | P3 |
+| Primary currency select/change (NGN default) | P3, P4 |
+| MVP currencies NGN/USD/EUR/GBP | P2, P4 |
+| Currency Concepts + conversion for reporting only | P4 |
+| Accounts/wallets with own currency | P5 |
+| Income tracking, multiple sources, original currency | P6 |
+| Expense tracking quick + detailed, original currency | P6 |
+| Categories default + custom | P7 |
+| Flexible budgets (own currency, any amount/period, same-currency rule) | P8 |
 | Guided budgeting (budget currency) | P8 |
 | Budget monitoring (budget currency) | P8 |
-| Spending insights | P11 |
-| Budget alerts | P11 |
-| Savings tracking (own currency, no account required) | P9 |
+| Savings (own currency, no account required) | P9 |
 | Financial goals (own currency, no account required) | P9 |
-| Business Mode (own currency accounts, original transaction currency) | P12 |
-| Categories (default + custom) | P7 |
-| Financial Overview | P10 |
-| MVP supported currencies (NGN/USD/EUR/GBP) | P2, P4 |
-| Nigeria-first positioning / NGN default | P3, P4 |
-| Multi-currency support | P4 |
+| Dashboard (one dashboard, primary default, selector, All Currencies) | P10 |
+| Financial overview | P10 |
+| Spending insights (same-currency) | P11 |
+| Budget alerts in-app (50/80/100/over/off) | P11 |
+| Business Mode (own-currency accounts, original-currency sales/expenses/profit) | P12 |
+| Nigeria-first / NGN default positioning | P3, P4, P10 |
 | User journey (account → currency → budget → track → monitor) | P3–P10 |
+| Product rules (no history rewrite, no raw cross-currency addition) | P4, P6, P8, P10, P12 |
+| Testing/validation + final review | P13, P14 |
+
+---
+
+## 9. Development workflow (mandatory)
+
+1. Implement **only one phase at a time**, in order 1→14.
+2. Run the phase's tests (pytest + Vitest as listed) plus all prior-phase regression tests.
+3. Manually verify the phase's verification criteria locally.
+4. Confirm no existing functionality broke.
+5. Report what was completed (files changed, tests run, verification results).
+6. **Wait for explicit approval before starting the next phase.**
+7. Never skip phases, never bundle unrelated changes, never introduce a new technology without written justification and approval.
