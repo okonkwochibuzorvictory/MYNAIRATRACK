@@ -86,9 +86,26 @@ class Account(Base):
     currency: Mapped[str] = mapped_column(
         ForeignKey("currencies.code"), nullable=False
     )
+    account_type: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="Other"
+    )
+    opening_balance: Mapped[Decimal] = mapped_column(
+        Numeric(18, 2), nullable=False, default=Decimal("0")
+    )
     is_business: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "account_type IN "
+            "('Bank Account', 'Cash', 'Mobile Money', 'Savings', 'Other')",
+            name="ck_account_type",
+        ),
+        CheckConstraint(
+            "opening_balance >= 0", name="ck_account_opening_non_negative"
+        ),
     )
 
 

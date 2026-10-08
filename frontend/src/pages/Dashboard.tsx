@@ -3,7 +3,13 @@ import { getMe, type User } from '../auth/client'
 import AppShell from '../components/AppShell'
 import RatesStatus from '../components/RatesStatus'
 import { Card, EmptyState, SectionHead, SoonBadge } from '../components/ui'
-import { ALL_CURRENCIES_VALUE, CURRENCY_SYMBOLS } from '../lib/currency'
+import { fetchAccounts, type Account } from '../lib/accounts'
+import {
+  ALL_CURRENCIES_VALUE,
+  CURRENCY_SYMBOLS,
+  convertAmount,
+  formatOriginal,
+} from '../lib/currency'
 
 const QUICK_ACTIONS = [
   { label: 'Add Income', sub: 'Record money in', icon: '+', href: '#/transactions' },
@@ -12,9 +18,21 @@ const QUICK_ACTIONS = [
   { label: 'Add Goal', sub: 'Save toward something', icon: '◎', href: '#/goals' },
 ]
 
+interface TotalState {
+  loading: boolean
+  text: string
+  sub: string
+}
+
 export default function Dashboard() {
   const [user, setUser] = useState<User | null>(null)
+  const [accounts, setAccounts] = useState<Account[] | null>(null)
   const [filter, setFilter] = useState<string>('NGN')
+  const [total, setTotal] = useState<TotalState>({
+    loading: true,
+    text: '—',
+    sub: 'Your balance will appear here once you add an account or transaction.',
+  })
 
   useEffect(() => {
     getMe()
@@ -25,13 +43,85 @@ export default function Dashboard() {
       .catch(() => {
         window.location.hash = '#/login'
       })
+    fetchAccounts().then(setAccounts).catch(() => setAccounts([]))
   }, [])
 
+  useEffect(() => {
+    let cancelled = false
+    if (accounts === null || !user) return
+
+    async function compute() {
+      const acctList = accounts
+      const me = user
+      if (acctList === null || !me) return
+
+      if (acctList.length === 0) {
+        if (!cancelled)
+          setTotal({
+            loading: false,
+            text: '—',
+            sub: 'Your balance will appear here once you add an account or transaction.',
+          })
+        return
+      }
+      if (filter !== ALL_CURRENCIES_VALUE) {
+        const matching = acctList.filter((a) => a.currency === filter)
+        if (matching.length === 0) {
+          if (!cancelled)
+            setTotal({
+              loading: false,
+              text: `${CURRENCY_SYMBOLS[filter] ?? ''} —`,
+              sub: `No accounts in ${filter} yet.`,
+            })
+          return
+        }
+        const sum = matching.reduce((s, a) => s + Number(a.balance), 0)
+        if (!cancelled)
+          setTotal({
+            loading: false,
+            text: formatOriginal(sum.toFixed(2), filter),
+            sub: `Across ${matching.length} account${matching.length === 1 ? '' : 's'} in ${filter}.`,
+          })
+        return
+      }
+      // All Currencies: convert every native balance to the primary currency
+      // through the backend (React never calls the FX provider directly).
+      const primary = me.primary_currency
+      let sum = 0
+      const missing: string[] = []
+      for (const a of acctList) {
+        if (a.currency === primary) {
+          sum += Number(a.balance)
+          continue
+        }
+        try {
+          const r = await convertAmount(a.currency, primary, a.balance)
+          if (cancelled) return
+          if (r.available && r.converted_amount !== null) sum += Number(r.converted_amount)
+          else if (!missing.includes(a.currency)) missing.push(a.currency)
+        } catch {
+          if (!cancelled && !missing.includes(a.currency)) missing.push(a.currency)
+        }
+      }
+      if (cancelled) return
+      setTotal({
+        loading: false,
+        text: formatOriginal(sum.toFixed(2), primary),
+        sub:
+          missing.length === 0
+            ? `All Currencies consolidated view · converted to ${primary} using cached rates.`
+            : `Converted to ${primary} using cached rates · conversion unavailable for ${missing.join(', ')} — not included.`,
+      })
+    }
+
+    setTotal((t) => ({ ...t, loading: true }))
+    void compute()
+    return () => {
+      cancelled = true
+    }
+  }, [accounts, user, filter])
+
   const symbol = CURRENCY_SYMBOLS[filter] ?? ''
-  const reportingNote =
-    filter === ALL_CURRENCIES_VALUE
-      ? `All Currencies consolidated view · converted to ${user?.primary_currency ?? 'NGN'}`
-      : `Reporting in ${filter}`;
 
   return (
     <AppShell
@@ -44,11 +134,9 @@ export default function Dashboard() {
       <Card className="mt-balance">
         <p className="mt-card-label">Total Balance</p>
         <p className="mt-balance-amount">
-          {symbol ? `${symbol} —` : '—'}
+          {total.loading ? `${symbol} …` : total.text}
         </p>
-        <p className="mt-balance-sub">
-          Your balance will appear here once you add an account or transaction. · {reportingNote}
-        </p>
+        <p className="mt-balance-sub">{total.sub}</p>
       </Card>
 
       <div className="mt-grid-3">

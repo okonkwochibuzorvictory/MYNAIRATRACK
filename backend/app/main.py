@@ -1,8 +1,9 @@
-"""MYNAIRATRACK backend — Phase 4: currency foundation.
+"""MYNAIRATRACK backend — Phase 5: accounts/wallets.
 
 Provides /health and /db-check (Phase 1), /auth/* and /users/me
-(Phase 3), plus /currencies and /exchange-rates/* (Phase 4).
-No money recording yet; conversion is reporting-only.
+(Phase 3), /currencies and /exchange-rates/* (Phase 4), plus
+/accounts/* (Phase 5). No transactions yet; balances are native
+per-account (opening balance, same-currency only).
 """
 
 import os
@@ -14,12 +15,13 @@ from fastapi.middleware.cors import CORSMiddleware
 
 load_dotenv()
 
+from .routers import accounts as accounts_router
 from .routers import auth as auth_router
 from .routers import currencies as currencies_router
 from .routers import exchange_rates as exchange_rates_router
 from .routers import users as users_router
 
-app = FastAPI(title="MYNAIRATRACK API (Phase 4)")
+app = FastAPI(title="MYNAIRATRACK API (Phase 5)")
 
 cors_origins = [
     origin.strip()
@@ -38,6 +40,7 @@ app.include_router(auth_router.router)
 app.include_router(users_router.router)
 app.include_router(currencies_router.router)
 app.include_router(exchange_rates_router.router)
+app.include_router(accounts_router.router)
 
 
 @app.get("/health")
