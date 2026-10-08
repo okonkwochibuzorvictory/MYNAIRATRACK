@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { MVP_CURRENCIES, getMe, logout, updateMe, type User } from '../auth/client'
+import AppShell from '../components/AppShell'
 
 export default function Settings() {
   const [user, setUser] = useState<User | null>(null)
@@ -41,41 +42,61 @@ export default function Settings() {
   }
 
   return (
-    <main style={{ fontFamily: 'system-ui, sans-serif', padding: '2rem', maxWidth: 480 }}>
-      <h1>Settings</h1>
-      {user && <p>{user.email}</p>}
-      <form onSubmit={onSave}>
-        <p>
-          <label>
-            Name
-            <br />
-            <input value={name} onChange={(e) => setName(e.target.value)} required />
-          </label>
-        </p>
-        <p>
-          <label>
-            Primary currency
-            <br />
-            <select value={currency} onChange={(e) => setCurrency(e.target.value)}>
+    <AppShell active="settings" title="Settings" subtitle="Manage your profile and preferences.">
+      <section className="mt-card" style={{ maxWidth: 560 }}>
+        <h2 style={{ marginTop: 0 }}>Profile</h2>
+        {user && <p className="mt-auth-sub">{user.email}</p>}
+        <form onSubmit={onSave}>
+          <div className="mt-field">
+            <label htmlFor="settings-name">Name</label>
+            <input
+              id="settings-name"
+              className="mt-input"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+            />
+          </div>
+          <div className="mt-field">
+            <label htmlFor="settings-currency">Primary currency</label>
+            <select
+              id="settings-currency"
+              className="mt-select"
+              value={currency}
+              onChange={(e) => setCurrency(e.target.value)}
+            >
               {MVP_CURRENCIES.map((c) => (
                 <option key={c} value={c}>
                   {c}
                 </option>
               ))}
             </select>
-          </label>
+          </div>
+          {error && <p className="mt-error">{error}</p>}
+          {message && <p className="mt-success-msg">{message}</p>}
+          <button className="mt-btn" type="submit">
+            Save settings
+          </button>
+        </form>
+        <p className="mt-note">
+          Changing the primary currency only changes how reports are displayed. Your saved amounts
+          and their currencies are never rewritten. ·{' '}
+          <button
+            type="button"
+            onClick={onLogout}
+            style={{
+              background: 'none',
+              border: 'none',
+              padding: 0,
+              color: 'var(--mt-primary)',
+              fontWeight: 700,
+              cursor: 'pointer',
+            }}
+          >
+            Log out
+          </button>
         </p>
-        {error && <p style={{ color: 'red' }}>{error}</p>}
-        {message && <p style={{ color: 'green' }}>{message}</p>}
-        <button type="submit">Save settings</button>
-      </form>
-      <p>
-        <a href="#/dashboard">Back to dashboard</a>
-        {' · '}
-        <button type="button" onClick={onLogout}>
-          Log out
-        </button>
-      </p>
-    </main>
+      </section>
+    </AppShell>
   )
 }

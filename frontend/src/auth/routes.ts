@@ -1,6 +1,16 @@
 export const LOGIN_ROUTE = '#/login'
 
-const PROTECTED = new Set(['#/dashboard', '#/setup', '#/settings'])
+const PROTECTED = new Set([
+  '#/dashboard',
+  '#/setup',
+  '#/settings',
+  '#/accounts',
+  '#/transactions',
+  '#/budgets',
+  '#/goals',
+  '#/insights',
+  '#/business',
+])
 
 export function normalizeHash(hash: string): string {
   if (!hash) return '#/'

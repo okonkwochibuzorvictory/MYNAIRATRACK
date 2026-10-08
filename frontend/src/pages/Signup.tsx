@@ -23,43 +23,60 @@ export default function Signup() {
   }
 
   return (
-    <main style={{ fontFamily: 'system-ui, sans-serif', padding: '2rem', maxWidth: 480 }}>
-      <h1>Sign up</h1>
-      <form onSubmit={onSubmit}>
-        <p>
-          <label>
-            Name
-            <br />
-            <input value={name} onChange={(e) => setName(e.target.value)} required />
-          </label>
-        </p>
-        <p>
-          <label>
-            Email
-            <br />
-            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-          </label>
-        </p>
-        <p>
-          <label>
-            Password (min 8 chars, letters + numbers)
-            <br />
+    <div className="mt-auth-wrap">
+      <main className="mt-auth-card">
+        <div className="mt-brand">
+          <span className="mt-brand-mark" aria-hidden="true">
+            ₦
+          </span>
+          <span className="mt-brand-name">
+            MYNAIRA<span>TRACK</span>
+          </span>
+        </div>
+        <h1>Create your account</h1>
+        <p className="mt-auth-sub">Start tracking your money in less than a minute.</p>
+        <form onSubmit={onSubmit}>
+          <div className="mt-field">
+            <label htmlFor="signup-name">Name</label>
             <input
+              id="signup-name"
+              className="mt-input"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+            />
+          </div>
+          <div className="mt-field">
+            <label htmlFor="signup-email">Email</label>
+            <input
+              id="signup-email"
+              className="mt-input"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
+          </div>
+          <div className="mt-field">
+            <label htmlFor="signup-password">Password (min 8 chars, letters + numbers)</label>
+            <input
+              id="signup-password"
+              className="mt-input"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
             />
-          </label>
+          </div>
+          {error && <p className="mt-error">{error}</p>}
+          <button className="mt-btn" type="submit" disabled={busy}>
+            {busy ? 'Creating…' : 'Create account'}
+          </button>
+        </form>
+        <p className="mt-auth-foot">
+          Have an account? <a href="#/login">Log in</a>
         </p>
-        {error && <p style={{ color: 'red' }}>{error}</p>}
-        <button type="submit" disabled={busy}>
-          {busy ? 'Creating…' : 'Create account'}
-        </button>
-      </form>
-      <p>
-        Have an account? <a href="#/login">Log in</a>
-      </p>
-    </main>
+      </main>
+    </div>
   )
 }

@@ -8,9 +8,15 @@ interface Props {
 
 export default function CurrencySelector({ value, onChange, id = 'currency-selector' }: Props) {
   return (
-    <label htmlFor={id}>
+    <label htmlFor={id} style={{ fontSize: '0.85rem', fontWeight: 600 }}>
       Currency{' '}
-      <select id={id} value={value} onChange={(e) => onChange(e.target.value)}>
+      <select
+        id={id}
+        className="mt-select"
+        style={{ width: 'auto', display: 'inline-block' }}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      >
         {CURRENCY_OPTIONS.map((opt) => (
           <option key={opt.value} value={opt.value}>
             {opt.label}

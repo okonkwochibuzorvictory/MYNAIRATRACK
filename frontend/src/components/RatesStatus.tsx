@@ -11,9 +11,9 @@ export default function RatesStatus() {
     })
   }, [])
 
-  if (error) return <p style={{ color: 'red' }}>{error}</p>
-  if (!status) return <p>Loading exchange rates…</p>
-  if (status.count === 0) return <p>conversion unavailable — no cached rates yet.</p>
+  if (error) return <p className="mt-error">{error}</p>
+  if (!status) return <p className="mt-stat-sub">Loading exchange rates…</p>
+  if (status.count === 0) return <p className="mt-stat-sub">conversion unavailable — no cached rates yet.</p>
 
   const label = getRateLabel({
     cached: true,
@@ -23,10 +23,10 @@ export default function RatesStatus() {
 
   return (
     <section aria-label="Exchange rates">
-      <p>
+      <p className="mt-stat-sub">
         {label} ({status.count} cached pairs, base {status.base})
       </p>
-      <ul>
+      <ul className="mt-rates-list">
         {status.rates.slice(0, 6).map((r) => (
           <li key={`${r.from_currency}-${r.to_currency}`}>
             1 {r.from_currency} = {r.rate} {r.to_currency}

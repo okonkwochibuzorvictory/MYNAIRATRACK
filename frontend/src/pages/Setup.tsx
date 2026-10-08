@@ -32,26 +32,41 @@ export default function Setup() {
   }
 
   return (
-    <main style={{ fontFamily: 'system-ui, sans-serif', padding: '2rem', maxWidth: 480 }}>
-      <h1>Choose your primary currency</h1>
-      <p>{user ? `Welcome, ${user.name}. ` : ''}Default is NGN. You can change it later in Settings.</p>
-      <p>
-        <label>
-          Primary currency
-          <br />
-          <select value={currency} onChange={(e) => setCurrency(e.target.value)}>
+    <div className="mt-auth-wrap">
+      <main className="mt-auth-card">
+        <div className="mt-brand">
+          <span className="mt-brand-mark" aria-hidden="true">
+            ₦
+          </span>
+          <span className="mt-brand-name">
+            MYNAIRA<span>TRACK</span>
+          </span>
+        </div>
+        <h1>Choose your primary currency</h1>
+        <p className="mt-auth-sub">
+          {user ? `Welcome, ${user.name}. ` : ''}Reports default to this currency. NGN is the
+          default — you can change it any time in Settings.
+        </p>
+        <div className="mt-field">
+          <label htmlFor="setup-currency">Primary currency</label>
+          <select
+            id="setup-currency"
+            className="mt-select"
+            value={currency}
+            onChange={(e) => setCurrency(e.target.value)}
+          >
             {MVP_CURRENCIES.map((c) => (
               <option key={c} value={c}>
                 {c}
               </option>
             ))}
           </select>
-        </label>
-      </p>
-      {error && <p style={{ color: 'red' }}>{error}</p>}
-      <button onClick={save} disabled={busy}>
-        {busy ? 'Saving…' : 'Continue to dashboard'}
-      </button>
-    </main>
+        </div>
+        {error && <p className="mt-error">{error}</p>}
+        <button className="mt-btn" onClick={save} disabled={busy}>
+          {busy ? 'Saving…' : 'Continue to dashboard'}
+        </button>
+      </main>
+    </div>
   )
 }
