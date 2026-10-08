@@ -646,6 +646,31 @@ select {
   color: var(--mt-muted);
 }
 
+.mt-progress {
+  height: 0.6rem;
+  border-radius: 999px;
+  background: #eee7d6;
+  overflow: hidden;
+  margin: 0.6rem 0 0.25rem;
+}
+
+.mt-progress > span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--mt-success);
+  transition: width 0.2s ease;
+}
+
+.mt-status {
+  display: inline-block;
+  font-size: 0.78rem;
+  font-weight: 800;
+  border-radius: 999px;
+  padding: 0.15rem 0.65rem;
+  background: #eef5f0;
+}
+
 .mt-loading {
   padding: 2rem;
   text-align: center;

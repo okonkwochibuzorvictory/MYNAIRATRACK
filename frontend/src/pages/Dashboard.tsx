@@ -5,6 +5,7 @@ import BalanceToggle from '../components/BalanceToggle'
 import RatesStatus from '../components/RatesStatus'
 import { Card, EmptyState, SectionHead, SoonBadge } from '../components/ui'
 import { fetchAccounts, type Account } from '../lib/accounts'
+import { fetchBudgets, statusColor, type Budget } from '../lib/budgets'
 import {
   ALL_CURRENCIES_VALUE,
   CURRENCY_SYMBOLS,
@@ -17,7 +18,7 @@ import { fetchTransactions, type Transaction } from '../lib/transactions'
 const QUICK_ACTIONS = [
   { label: 'Add Income', sub: 'Record money in', icon: '+', href: '#/transactions', soon: false },
   { label: 'Add Expense', sub: 'Record money out', icon: '−', href: '#/transactions', soon: false },
-  { label: 'Create Budget', sub: 'Plan your spending', icon: '◫', href: '#/budgets', soon: true },
+  { label: 'Create Budget', sub: 'Plan your spending', icon: '◫', href: '#/budgets', soon: false },
   { label: 'Add Goal', sub: 'Save toward something', icon: '◎', href: '#/goals', soon: true },
 ]
 
@@ -43,6 +44,7 @@ export default function Dashboard() {
   const [user, setUser] = useState<User | null>(null)
   const [accounts, setAccounts] = useState<Account[] | null>(null)
   const [txns, setTxns] = useState<Transaction[] | null>(null)
+  const [budgets, setBudgets] = useState<Budget[] | null>(null)
   const [filter, setFilter] = useState<string>('NGN')
   const [showBalance, setShowBalance] = useState<boolean>(DEFAULT_BALANCE_VISIBLE)
   const [money, setMoney] = useState<MoneyState>(EMPTY_MONEY)
@@ -58,6 +60,7 @@ export default function Dashboard() {
       })
     fetchAccounts().then(setAccounts).catch(() => setAccounts([]))
     fetchTransactions().then(setTxns).catch(() => setTxns([]))
+    fetchBudgets().then(setBudgets).catch(() => setBudgets([]))
   }, [])
 
   useEffect(() => {
@@ -271,16 +274,22 @@ export default function Dashboard() {
         <div>
           <SectionHead title="Budget Progress" action={<a href="#/budgets">View budgets</a>} />
           <Card>
-            <EmptyState
-              icon="◫"
-              title="No budgets yet"
-              text="Create your first budget to start monitoring your spending."
-              action={
-                <a className="mt-btn" style={{ textDecoration: 'none' }} href="#/budgets">
-                  Create Budget
-                </a>
-              }
-            />
+            {budgets === null ? (
+              <p className="mt-stat-sub">Loading…</p>
+            ) : budgets.length === 0 ? (
+              <EmptyState
+                icon="◫"
+                title="No budgets yet"
+                text="Create your first budget to start monitoring your spending."
+                action={
+                  <a className="mt-btn" style={{ textDecoration: 'none' }} href="#/budgets">
+                    Create Budget
+                  </a>
+                }
+              />
+            ) : (
+              <ActiveBudgetSummary budget={pickActiveBudget(budgets)} showAmounts={showBalance} />
+            )}
           </Card>
         </div>
         <div>
@@ -308,5 +317,42 @@ export default function Dashboard() {
         Conversions are reporting-only; original amounts and currencies are never changed.
       </p>
     </AppShell>
+  )
+}
+
+function pickActiveBudget(budgets: Budget[]): Budget {
+  const today = new Date().toISOString().slice(0, 10)
+  return (
+    budgets.find((b) => b.period_start <= today && today <= b.period_end) ?? budgets[0]
+  )
+}
+
+function ActiveBudgetSummary({
+  budget,
+  showAmounts,
+}: {
+  budget: Budget
+  showAmounts: boolean
+}) {
+  const width = Math.max(0, Math.min(100, budget.percent_used))
+  return (
+    <div>
+      <strong>{budget.name}</strong>
+      <p className="mt-stat-sub" style={{ margin: '0.25rem 0' }}>
+        {budget.period_start} → {budget.period_end} · {budget.currency}
+      </p>
+      <p className="mt-stat-value" style={{ fontSize: '1.2rem' }}>
+        {displayBalance(
+          `${formatOriginal(budget.total_spent, budget.currency)} of ${formatOriginal(budget.amount, budget.currency)}`,
+          showAmounts,
+        )}
+      </p>
+      <div className="mt-progress" role="progressbar" aria-valuenow={Math.round(budget.percent_used)} aria-valuemin={0} aria-valuemax={100}>
+        <span style={{ width: `${width}%`, background: statusColor(budget.status) }} />
+      </div>
+      <span className="mt-status" style={{ color: statusColor(budget.status) }}>
+        {budget.status}
+      </span>
+    </div>
   )
 }
