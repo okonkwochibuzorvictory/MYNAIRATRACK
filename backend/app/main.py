@@ -1,6 +1,7 @@
-"""MYNAIRATRACK backend — Phase 1 skeleton.
+"""MYNAIRATRACK backend — Phase 3: authentication and user setup.
 
-Provides /health and /db-check only. No product features yet.
+Provides /health and /db-check (Phase 1) plus /auth/* and /users/me
+(Phase 3). No product features beyond auth/setup yet.
 """
 
 import os
@@ -12,7 +13,10 @@ from fastapi.middleware.cors import CORSMiddleware
 
 load_dotenv()
 
-app = FastAPI(title="MYNAIRATRACK API (Phase 1)")
+from .routers import auth as auth_router
+from .routers import users as users_router
+
+app = FastAPI(title="MYNAIRATRACK API (Phase 3)")
 
 cors_origins = [
     origin.strip()
@@ -26,6 +30,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(auth_router.router)
+app.include_router(users_router.router)
 
 
 @app.get("/health")
