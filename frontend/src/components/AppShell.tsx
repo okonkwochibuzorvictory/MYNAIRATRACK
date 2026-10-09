@@ -1,7 +1,8 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { getMe, logout, type User } from '../auth/client'
 import CurrencySelector from '../components/CurrencySelector'
-import { greetingFor } from '../lib/greeting'
+import { greetingChanged, greetingFor } from '../lib/greeting'
+import { fetchUnreadCount } from '../lib/insights'
 
 const NAV = [
   { key: 'dashboard', label: 'Dashboard', icon: '◉', href: '#/dashboard' },
@@ -26,13 +27,31 @@ interface Props {
 
 export default function AppShell({ active, title, subtitle, filter, onFilterChange, children }: Props) {
   const [user, setUser] = useState<User | null>(null)
+  const [unread, setUnread] = useState(0)
+  const [now, setNow] = useState(() => new Date())
 
   useEffect(() => {
     getMe()
-      .then(setUser)
+      .then((me) => {
+        setUser(me)
+        if (me) fetchUnreadCount().then(setUnread).catch(() => {})
+      })
       .catch(() => {
         window.location.hash = '#/login'
       })
+  }, [])
+
+  useEffect(() => {
+    // Re-check the clock regularly so the greeting follows period changes,
+    // including OS clock corrections (NTP), manual changes, DST, and sleep.
+    // State only updates when the day part actually changes.
+    const id = window.setInterval(() => {
+      setNow((prev) => {
+        const next = new Date()
+        return greetingChanged(prev, next) ? next : prev
+      })
+    }, 30000)
+    return () => window.clearInterval(id)
   }, [])
 
   async function onLogout() {
@@ -73,7 +92,7 @@ export default function AppShell({ active, title, subtitle, filter, onFilterChan
       <div className="mt-main">
         <header className="mt-header">
           <div className="mt-header-titles">
-            <h1>{user ? greetingFor(user.name) : title}</h1>
+            <h1>{user ? greetingFor(user.name, now) : title}</h1>
             <p>{subtitle ?? "Here's your money overview."}</p>
           </div>
           <div className="mt-header-side">
@@ -82,6 +101,37 @@ export default function AppShell({ active, title, subtitle, filter, onFilterChan
             )}
             {user && (
               <>
+                <a
+                  href="#/insights"
+                  aria-label={unread > 0 ? `${unread} unread alerts` : 'No unread alerts'}
+                  title="Alerts"
+                  style={{
+                    position: 'relative',
+                    textDecoration: 'none',
+                    fontSize: '1.2rem',
+                    color: 'var(--mt-text)',
+                  }}
+                >
+                  <span aria-hidden="true">🔔</span>
+                  {unread > 0 && (
+                    <span
+                      aria-hidden="true"
+                      style={{
+                        position: 'absolute',
+                        top: '-0.4rem',
+                        right: '-0.5rem',
+                        background: 'var(--mt-error)',
+                        color: '#fff',
+                        borderRadius: '999px',
+                        fontSize: '0.7rem',
+                        fontWeight: 800,
+                        padding: '0 0.35rem',
+                      }}
+                    >
+                      {unread}
+                    </span>
+                  )}
+                </a>
                 <div className="mt-profile">
                   <div className="mt-profile-name">{user.name}</div>
                   <div className="mt-profile-mail">{user.email}</div>

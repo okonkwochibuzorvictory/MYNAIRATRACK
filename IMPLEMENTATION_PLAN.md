@@ -118,7 +118,7 @@ Income vs expenses are rows in `transactions` distinguished by `type` (PRD treat
 
 ---
 
-## 5. Implementation phases (final, 1–14)
+## 5. Implementation phases (final, 1–13)
 
 ### Phase 1 — Project setup and foundation
 
@@ -228,31 +228,31 @@ Income vs expenses are rows in `transactions` distinguished by `type` (PRD treat
 - **Tests:** pytest: goal without matching account allowed; progress math in goal currency. Vitest: goal creation flow.
 - **Gate:** Savings/goals fully currency-independent from accounts.
 
-### Phase 10 — Dashboard and financial overview
+### ✅ Completed: Dashboard and financial overview (original Phase 10 scope — delivered incrementally across Phases 5–9)
 
-- **Objective:** ONE dashboard, primary-currency default, selector/filter, All Currencies consolidated view. No separate per-currency dashboards.
-- **What will be built:** Cards for available money, income, expenses, current/remaining budget, savings, spending breakdown, recent transactions, budget status, alerts, progress; Financial Overview section (income/expenses/savings/available/budget status/recent activity); currency selector; All Currencies view converting to primary currency via cached FX rates (with last-update/cached labels); primary-currency change updates display only, never rewrites history.
-- **Main user-facing functionality:** User opens dashboard in NGN; switches to USD; switches to All Currencies and sees consolidated NGN-equivalent view; changes primary currency in settings and sees dashboard follow without history changes.
-- **Backend/database work:** Dashboard aggregation endpoint honoring selected currency; All Currencies path uses conversion helper; missing-rate → "unavailable" label per metric, never fabricated totals.
-- **Files/modules expected:** `frontend/src/pages/Dashboard.tsx`, `frontend/src/components/*` (cards, selector); `backend/app/routers/dashboard.py`, `backend/app/reporting.py`.
-- **Dependencies:** Phases 4, 5, 6, 8, 9 (alerts widget reads Phase 11 data if present; dashboard reserves the slot even if Phase 11 lands after).
-- **Verification criteria:** Mixed-currency data → single-currency view shows only matching records; All Currencies shows converted consolidated values; primary-currency switch changes display, history currencies unchanged in DB.
-- **Tests:** pytest: no raw addition across currencies; All Currencies uses primary as target; history immutability after primary change. Vitest: selector behavior; All Currencies rendering.
-- **Gate:** Dashboard is the single source of truth and obeys every currency rule.
+- **Status:** COMPLETE. All requirements below are preserved and were delivered in practice; no separate dashboard phase remains.
+- **Objective (preserved):** ONE dashboard, primary-currency default, selector/filter, All Currencies consolidated view. No separate per-currency dashboards.
+- **What was built (preserved):** Cards for available money, income, expenses, current/remaining budget, savings, spending breakdown, recent transactions, budget status, alerts slot, progress; Financial Overview section (income/expenses/savings/available/budget status/recent activity); currency selector; All Currencies view converting to primary currency via cached FX rates (with last-update/cached labels); primary-currency change updates display only, never rewrites history.
+- **Main user-facing functionality (preserved):** User opens dashboard in NGN; switches to USD; switches to All Currencies and sees consolidated NGN-equivalent view; changes primary currency in settings and sees dashboard follow without history changes.
+- **Backend/database work (preserved):** Dashboard aggregation honoring selected currency (computed in frontend from user-scoped endpoints); All Currencies path uses conversion helper; missing-rate → "unavailable" label per metric, never fabricated totals.
+- **Dependencies (preserved):** Phases 4, 5, 6, 8, 9. The alerts widget slot is filled by Phase 10 below.
+- **Verification criteria (preserved):** Mixed-currency data → single-currency view shows only matching records; All Currencies shows converted consolidated values; primary-currency switch changes display, history currencies unchanged in DB.
+- **Tests (preserved):** pytest: no raw addition across currencies; All Currencies uses primary as target; history immutability after primary change. Vitest: selector behavior; All Currencies rendering.
+- **Gate (met):** Dashboard is the single source of truth and obeys every currency rule.
 
-### Phase 11 — Spending insights and alerts
+### Phase 10 — Insights & Alerts (approved scope)
 
 - **Objective:** Simple spending understanding + user-controlled in-app budget alerts.
-- **What will be built:** Insights panel (totals by category, % of budget used, increase vs prior period — computed within same currency); alert preferences (50/80/100%, over-budget, off); in-app alert list + dashboard badge (final decision).
-- **Main user-facing functionality:** User enables 80% alert, receives in-app alert at 80% of that budget's currency; can turn alerts off entirely.
-- **Backend/database work:** Insight computation (same-currency grouping); alert evaluation on transaction write; `alerts` table reads.
-- **Files/modules expected:** `frontend/src/pages/Insights.tsx`, `frontend/src/components/Alerts.tsx`; `backend/app/routers/{insights,alerts}.py`, `backend/app/alerting.py`.
+- **What will be built:** Insights panel (totals by category, % of budget used, current vs immediately-preceding equal-length period — computed within same currency, zero previous spending shown as a message never a percentage); per-budget alert preferences (50% off by default, 80%/100%/over-budget on by default, master off switch); in-app alert list + dashboard badge (final decision). MVP alerts are budget-threshold only; no standalone spending-increase alerts.
+- **Main user-facing functionality:** User keeps the 80% default and receives an in-app alert at 80% of that budget's currency; can change thresholds or turn alerts off entirely.
+- **Backend/database work:** Insight computation (same-currency grouping); `alert_preferences` table via small additive migration (per-budget thresholds + master switch); alert evaluation on transaction create/edit/delete with dedup per budget + threshold + budget period; `alerts` table reads. Alerting never moves money or edits balances.
+- **Files/modules expected:** `frontend/src/pages/Insights.tsx`, `frontend/src/components/Alerts.tsx`; `backend/app/routers/{insights,alerts}.py`, `backend/app/alerting.py`; `backend/migrations/003_alert_preferences.sql`.
 - **Dependencies:** Phases 6, 8.
-- **Verification criteria:** Alerts fire at correct thresholds in budget currency; off means silent; insights never mix currencies in one percentage.
+- **Verification criteria:** Alerts fire at correct thresholds in budget currency; off means silent; insights never mix currencies in one percentage; repeated evaluations do not duplicate alerts; edits/deletes recalculate correctly.
 - **Tests:** pytest: threshold firing (50/80/100/over), off-state silence, same-currency grouping. Vitest: preferences UI + alert list.
 - **Gate:** Insights/alerts correct and currency-safe.
 
-### Phase 12 — Business Mode
+### Phase 11 — Business Mode
 
 - **Objective:** Business tracking inside the same product and dashboard shell. No separate product, no separate dashboard.
 - **What will be built:** Business Mode toggle; business accounts with own currencies; business sales/income + expenses + profit views preserving transaction currency; personal vs business separation.
@@ -264,28 +264,28 @@ Income vs expenses are rows in `transactions` distinguished by `type` (PRD treat
 - **Tests:** pytest: personal/business isolation; same-currency profit math; mixed-currency separation. Vitest: Business Mode activation flow.
 - **Gate:** Business Mode works multi-currency without forking the product.
 
-### Phase 13 — Testing and validation
+### Phase 12 — Testing and validation
 
 - **Objective:** Prove the MVP meets the PRD.
 - **What will be built:** Full traceability checklist (PRD requirement → phase → test → result); bug triage; regression run of all currency-rule tests.
 - **Main user-facing functionality:** None new; confidence in what exists.
 - **Backend/database work:** Test fixtures with mixed-currency data; missing-rate scenarios.
 - **Files/modules expected:** `backend/tests/`, `frontend/src/**/*.test.*`, `TEST_CHECKLIST.md` (results log).
-- **Dependencies:** All phases 1–12.
+- **Dependencies:** All phases 1–11.
 - **Verification criteria:** Every checklist row passes; currency-rule tests green; auth isolation tests green.
 - **Tests:** Full pytest + Vitest suites + scripted manual end-to-end (signup → accounts → transactions → budgets → goals → dashboard → Business Mode).
 - **Gate:** Zero open PRD-blocking defects.
 
-### Phase 14 — Final MVP review
+### Phase 13 — Final MVP review
 
 - **Objective:** Confirm scope, alignment, and readiness; capture post-MVP backlog.
 - **What will be built:** Scope-vs-PRD review; local performance sanity; open-decisions log; post-MVP backlog (extra currencies, shared budgets, etc. — all PRD-deferred; live FX is IN the MVP via the cached provider architecture, so it is not backlog).
 - **Main user-facing functionality:** None new; go/no-go decision.
-- **Backend/database work:** None except fixes for Phase 13 blockers.
+- **Backend/database work:** None except fixes for Phase 12 blockers.
 - **Files/modules expected:** Updated `IMPLEMENTATION_PLAN.md` status notes; backlog list.
-- **Dependencies:** Phase 13.
+- **Dependencies:** Phase 12.
 - **Verification criteria:** Product owner sign-off against MVP boundary (§6).
-- **Tests:** Re-run of Phase 13 gate suite.
+- **Tests:** Re-run of Phase 12 gate suite.
 - **Gate:** Explicit approval to call the MVP complete.
 
 ---
@@ -344,19 +344,19 @@ Income vs expenses are rows in `transactions` distinguished by `type` (PRD treat
 | Financial goals (own currency, no account required) | P9 |
 | Dashboard (one dashboard, primary default, selector, All Currencies) | P10 |
 | Financial overview | P10 |
-| Spending insights (same-currency) | P11 |
-| Budget alerts in-app (50/80/100/over/off) | P11 |
-| Business Mode (own-currency accounts, original-currency sales/expenses/profit) | P12 |
+| Spending insights (same-currency) | P10 |
+| Budget alerts in-app (50/80/100/over/off) | P10 |
+| Business Mode (own-currency accounts, original-currency sales/expenses/profit) | P11 |
 | Nigeria-first / NGN default positioning | P3, P4, P10 |
 | User journey (account → currency → budget → track → monitor) | P3–P10 |
-| Product rules (no history rewrite, no raw cross-currency addition) | P4, P6, P8, P10, P12 |
-| Testing/validation + final review | P13, P14 |
+| Product rules (no history rewrite, no raw cross-currency addition) | P4, P6, P8, P11, dashboard (complete) |
+| Testing/validation + final review | P12, P13 |
 
 ---
 
 ## 10. Development workflow (mandatory)
 
-1. Implement **only one phase at a time**, in order 1→14.
+1. Implement **only one phase at a time**, in order 1→13.
 2. Run the phase's tests (pytest + Vitest as listed) plus all prior-phase regression tests.
 3. Manually verify the phase's verification criteria locally.
 4. Confirm no existing functionality broke.

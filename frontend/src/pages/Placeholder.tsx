@@ -2,24 +2,6 @@ import AppShell from '../components/AppShell'
 import { EmptyState, SoonBadge } from '../components/ui'
 
 const COPY: Record<string, { title: string; heading: string; text: string; icon: string }> = {
-  budgets: {
-    title: 'Budgets',
-    heading: 'Budgets are coming soon',
-    text: 'Flexible and guided budgets — each in its own currency — will be created and monitored here.',
-    icon: '◫',
-  },
-  goals: {
-    title: 'Goals',
-    heading: 'Goals are coming soon',
-    text: 'Savings targets and financial goals, each with its own currency, will be tracked here.',
-    icon: '◎',
-  },
-  insights: {
-    title: 'Insights',
-    heading: 'Insights are coming soon',
-    text: 'Spending summaries and in-app budget alerts will appear here once you start tracking transactions.',
-    icon: '◍',
-  },
   business: {
     title: 'Business',
     heading: 'Business Mode is coming soon',

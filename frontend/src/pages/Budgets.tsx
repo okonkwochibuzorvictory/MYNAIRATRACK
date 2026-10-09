@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import AppShell from '../components/AppShell'
+import AlertPrefs from '../components/AlertPrefs'
 import BalanceToggle from '../components/BalanceToggle'
 import { Card, EmptyState, SectionHead } from '../components/ui'
 import { fetchAccounts } from '../lib/accounts'
@@ -531,6 +532,12 @@ function BudgetDetails({
         Only {budget.currency} expenses in this period count. Other currencies are never converted
         into this budget.
       </p>
+      <div className="mt-field">
+        <span style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+          Alert preferences
+        </span>
+        <AlertPrefs budgetId={budget.id} />
+      </div>
       <div className="mt-field" style={{ marginTop: '1rem' }}>
         <span style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.35rem' }}>
           Add allocation

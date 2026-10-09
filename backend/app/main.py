@@ -16,16 +16,19 @@ from fastapi.middleware.cors import CORSMiddleware
 load_dotenv()
 
 from .routers import accounts as accounts_router
+from .routers import alerts as alerts_router
 from .routers import auth as auth_router
 from .routers import budgets as budgets_router
 from .routers import categories as categories_router
 from .routers import currencies as currencies_router
 from .routers import exchange_rates as exchange_rates_router
+from .routers import insights as insights_router
+from .routers import preferences as preferences_router
 from .routers import savings_goals as savings_goals_router
 from .routers import transactions as transactions_router
 from .routers import users as users_router
 
-app = FastAPI(title="MYNAIRATRACK API (Phase 9)")
+app = FastAPI(title="MYNAIRATRACK API (Phase 10)")
 
 cors_origins = [
     origin.strip()
@@ -50,6 +53,9 @@ app.include_router(categories_router.router)
 app.include_router(budgets_router.router)
 app.include_router(savings_goals_router.savings_router)
 app.include_router(savings_goals_router.goals_router)
+app.include_router(insights_router.router)
+app.include_router(alerts_router.router)
+app.include_router(preferences_router.router)
 
 
 @app.get("/health")

@@ -6,6 +6,7 @@ import RatesStatus from '../components/RatesStatus'
 import { Card, EmptyState, SectionHead, SoonBadge } from '../components/ui'
 import { fetchAccounts, type Account } from '../lib/accounts'
 import { fetchBudgets, statusColor, type Budget } from '../lib/budgets'
+import { fetchAlerts, type AlertItem } from '../lib/insights'
 import { fetchGoals, fetchSavings, statusColor as goalStatusColor, type Goal, type SavingsTarget } from '../lib/goals'
 import {
   ALL_CURRENCIES_VALUE,
@@ -46,6 +47,7 @@ export default function Dashboard() {
   const [accounts, setAccounts] = useState<Account[] | null>(null)
   const [txns, setTxns] = useState<Transaction[] | null>(null)
   const [budgets, setBudgets] = useState<Budget[] | null>(null)
+  const [alerts, setAlerts] = useState<AlertItem[] | null>(null)
   const [goalItems, setGoalItems] = useState<Array<SavingsTarget | Goal> | null>(null)
   const [filter, setFilter] = useState<string>('NGN')
   const [showBalance, setShowBalance] = useState<boolean>(DEFAULT_BALANCE_VISIBLE)
@@ -63,6 +65,7 @@ export default function Dashboard() {
     fetchAccounts().then(setAccounts).catch(() => setAccounts([]))
     fetchTransactions().then(setTxns).catch(() => setTxns([]))
     fetchBudgets().then(setBudgets).catch(() => setBudgets([]))
+    fetchAlerts().then(setAlerts).catch(() => setAlerts([]))
     Promise.all([fetchSavings(), fetchGoals()])
       .then(([s, g]) => setGoalItems([...s, ...g]))
       .catch(() => setGoalItems([]))
@@ -350,6 +353,30 @@ export default function Dashboard() {
       <SectionHead title="Exchange Rates" />
       <Card>
         <RatesStatus />
+      </Card>
+      <SectionHead title="Alerts" action={<a href="#/insights">View all</a>} />
+      <Card>
+        {alerts === null ? (
+          <p className="mt-stat-sub">Loading…</p>
+        ) : alerts.filter((a) => !a.is_read).length === 0 ? (
+          <EmptyState
+            icon="🔔"
+            title="You're all caught up"
+            text="Budget alerts will appear here when your spending crosses a threshold you enabled."
+          />
+        ) : (
+          <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+            {alerts
+              .filter((a) => !a.is_read)
+              .slice(0, 3)
+              .map((a) => (
+                <li key={a.id} style={{ padding: '0.6rem 0', borderTop: '1px solid var(--mt-border)' }}>
+                  <strong>{a.budget_name ?? 'Budget alert'}</strong>
+                  <div className="mt-stat-sub">{a.message}</div>
+                </li>
+              ))}
+          </ul>
+        )}
       </Card>
       <p className="mt-note">
         Conversions are reporting-only; original amounts and currencies are never changed.

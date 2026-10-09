@@ -11,3 +11,25 @@ export function greetingFor(name: string, now: Date = new Date()): string {
   if (part === 'afternoon') return `Good afternoon, ${first} 👋`
   return `Good evening, ${first} 👋`
 }
+
+function nextBoundaryHour(hour: number): number {
+  if (hour < 12) return 12
+  if (hour < 17) return 17
+  return 24 + 0
+}
+
+export function msUntilNextGreetingChange(now: Date = new Date()): number {
+  const target = new Date(now)
+  const next = nextBoundaryHour(now.getHours())
+  if (next >= 24) {
+    target.setDate(target.getDate() + 1)
+    target.setHours(next - 24, 0, 0, 0)
+  } else {
+    target.setHours(next, 0, 0, 0)
+  }
+  return Math.max(0, target.getTime() - now.getTime())
+}
+
+export function greetingChanged(prev: Date, next: Date): boolean {
+  return getDayPart(prev.getHours()) !== getDayPart(next.getHours())
+}

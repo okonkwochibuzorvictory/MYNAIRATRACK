@@ -16,6 +16,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, field_validator
 from sqlalchemy.orm import Session
 
+from ..alerting import evaluate_user_budgets
 from ..auth import get_current_user, get_db
 from ..currency import validate_currency
 from ..models import Account, Category, Transaction, User
@@ -203,6 +204,7 @@ def create_transaction(
     db.add(txn)
     db.commit()
     db.refresh(txn)
+    evaluate_user_budgets(db, current_user.id)
     return to_txn_out(db, txn)
 
 
@@ -286,6 +288,7 @@ def update_transaction(
     db.add(txn)
     db.commit()
     db.refresh(txn)
+    evaluate_user_budgets(db, current_user.id)
     return to_txn_out(db, txn)
 
 
@@ -298,4 +301,5 @@ def delete_transaction(
     txn = get_owned_txn(db, current_user.id, txn_id)
     db.delete(txn)
     db.commit()
+    evaluate_user_budgets(db, current_user.id)
     return {"ok": True}

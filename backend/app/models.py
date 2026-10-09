@@ -271,6 +271,28 @@ class Alert(Base):
     type: Mapped[str] = mapped_column(String(32), nullable=False)
     message: Mapped[str] = mapped_column(Text, nullable=False)
     is_read: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    period_start = mapped_column(Date, nullable=True)
+    period_end = mapped_column(Date, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class AlertPreference(Base):
+    __tablename__ = "alert_preferences"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    budget_id: Mapped[int | None] = mapped_column(
+        ForeignKey("budgets.id", ondelete="CASCADE"), nullable=True
+    )
+    alert_50: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    alert_80: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    alert_100: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    alert_over: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    alerts_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
