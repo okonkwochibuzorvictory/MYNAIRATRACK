@@ -21,10 +21,11 @@ from .routers import budgets as budgets_router
 from .routers import categories as categories_router
 from .routers import currencies as currencies_router
 from .routers import exchange_rates as exchange_rates_router
+from .routers import savings_goals as savings_goals_router
 from .routers import transactions as transactions_router
 from .routers import users as users_router
 
-app = FastAPI(title="MYNAIRATRACK API (Phase 8)")
+app = FastAPI(title="MYNAIRATRACK API (Phase 9)")
 
 cors_origins = [
     origin.strip()
@@ -47,6 +48,8 @@ app.include_router(accounts_router.router)
 app.include_router(transactions_router.router)
 app.include_router(categories_router.router)
 app.include_router(budgets_router.router)
+app.include_router(savings_goals_router.savings_router)
+app.include_router(savings_goals_router.goals_router)
 
 
 @app.get("/health")

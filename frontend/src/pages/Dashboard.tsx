@@ -6,6 +6,7 @@ import RatesStatus from '../components/RatesStatus'
 import { Card, EmptyState, SectionHead, SoonBadge } from '../components/ui'
 import { fetchAccounts, type Account } from '../lib/accounts'
 import { fetchBudgets, statusColor, type Budget } from '../lib/budgets'
+import { fetchGoals, fetchSavings, statusColor as goalStatusColor, type Goal, type SavingsTarget } from '../lib/goals'
 import {
   ALL_CURRENCIES_VALUE,
   CURRENCY_SYMBOLS,
@@ -19,7 +20,7 @@ const QUICK_ACTIONS = [
   { label: 'Add Income', sub: 'Record money in', icon: '+', href: '#/transactions', soon: false },
   { label: 'Add Expense', sub: 'Record money out', icon: '−', href: '#/transactions', soon: false },
   { label: 'Create Budget', sub: 'Plan your spending', icon: '◫', href: '#/budgets', soon: false },
-  { label: 'Add Goal', sub: 'Save toward something', icon: '◎', href: '#/goals', soon: true },
+  { label: 'Add Goal', sub: 'Save toward something', icon: '◎', href: '#/goals', soon: false },
 ]
 
 interface MoneyState {
@@ -45,6 +46,7 @@ export default function Dashboard() {
   const [accounts, setAccounts] = useState<Account[] | null>(null)
   const [txns, setTxns] = useState<Transaction[] | null>(null)
   const [budgets, setBudgets] = useState<Budget[] | null>(null)
+  const [goalItems, setGoalItems] = useState<Array<SavingsTarget | Goal> | null>(null)
   const [filter, setFilter] = useState<string>('NGN')
   const [showBalance, setShowBalance] = useState<boolean>(DEFAULT_BALANCE_VISIBLE)
   const [money, setMoney] = useState<MoneyState>(EMPTY_MONEY)
@@ -61,6 +63,9 @@ export default function Dashboard() {
     fetchAccounts().then(setAccounts).catch(() => setAccounts([]))
     fetchTransactions().then(setTxns).catch(() => setTxns([]))
     fetchBudgets().then(setBudgets).catch(() => setBudgets([]))
+    Promise.all([fetchSavings(), fetchGoals()])
+      .then(([s, g]) => setGoalItems([...s, ...g]))
+      .catch(() => setGoalItems([]))
   }, [])
 
   useEffect(() => {
@@ -295,16 +300,49 @@ export default function Dashboard() {
         <div>
           <SectionHead title="Savings & Goals" action={<a href="#/goals">View goals</a>} />
           <Card>
-            <EmptyState
-              icon="◎"
-              title="No goals yet"
-              text="Start working toward your financial goals."
-              action={
-                <a className="mt-btn" style={{ textDecoration: 'none' }} href="#/goals">
-                  Add Goal
-                </a>
-              }
-            />
+            {goalItems === null ? (
+              <p className="mt-stat-sub">Loading…</p>
+            ) : goalItems.length === 0 ? (
+              <EmptyState
+                icon="◎"
+                title="No goals yet"
+                text="Start working toward your financial goals."
+                action={
+                  <a className="mt-btn" style={{ textDecoration: 'none' }} href="#/goals">
+                    Add Goal
+                  </a>
+                }
+              />
+            ) : (
+              <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+                {goalItems.slice(0, 3).map((g) => (
+                  <li key={`${g.id}`} style={{ padding: '0.6rem 0', borderTop: '1px solid var(--mt-border)' }}>
+                    <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'baseline' }}>
+                      <span style={{ flex: 1 }}>
+                        <strong>{g.name}</strong>
+                        <div className="mt-stat-sub">
+                          {displayBalance(
+                            `${formatOriginal(g.current_amount, g.currency)} of ${formatOriginal(g.target_amount, g.currency)}`,
+                            showBalance,
+                          )}
+                        </div>
+                      </span>
+                      <span className="mt-status" style={{ color: goalStatusColor(g.status) }}>
+                        {g.status}
+                      </span>
+                    </div>
+                    <div className="mt-progress" role="progressbar" aria-valuenow={Math.round(g.percent_complete)} aria-valuemin={0} aria-valuemax={100}>
+                      <span
+                        style={{
+                          width: `${Math.max(0, Math.min(100, g.percent_complete))}%`,
+                          background: goalStatusColor(g.status),
+                        }}
+                      />
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
           </Card>
         </div>
       </div>

@@ -4,6 +4,7 @@ import Accounts from './pages/Accounts'
 import Budgets from './pages/Budgets'
 import Categories from './pages/Categories'
 import Dashboard from './pages/Dashboard'
+import Goals from './pages/Goals'
 import Landing from './pages/Landing'
 import Login from './pages/Login'
 import Placeholder from './pages/Placeholder'
@@ -12,7 +13,7 @@ import Setup from './pages/Setup'
 import Signup from './pages/Signup'
 import Transactions from './pages/Transactions'
 
-const PLACEHOLDERS = new Set(['#/goals', '#/insights', '#/business'])
+const PLACEHOLDERS = new Set(['#/insights', '#/business'])
 
 export default function App() {
   const hash = useHashRoute()
@@ -60,6 +61,12 @@ export default function App() {
     return (
       <RequireAuth>
         <Budgets />
+      </RequireAuth>
+    )
+  if (route === '#/goals')
+    return (
+      <RequireAuth>
+        <Goals />
       </RequireAuth>
     )
   if (PLACEHOLDERS.has(route))
