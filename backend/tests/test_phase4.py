@@ -12,6 +12,7 @@ from unittest.mock import patch
 os.environ["JWT_SECRET"] = "phase4-test-secret-do-not-use-in-prod"
 os.environ["JWT_EXPIRE_MINUTES"] = "60"
 os.environ["COOKIE_SECURE"] = "false"
+os.environ["RESEND_API_KEY"] = ""
 
 import psycopg
 import pytest

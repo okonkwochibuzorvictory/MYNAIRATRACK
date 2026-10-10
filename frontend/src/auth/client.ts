@@ -3,6 +3,11 @@ export interface User {
   name: string
   email: string
   primary_currency: string
+  is_verified?: boolean
+}
+
+export interface RegisterResult extends User {
+  verification_emailed: boolean
 }
 
 const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? 'http://localhost:8000'
@@ -43,13 +48,13 @@ export async function getMe(): Promise<User | null> {
   return (await res.json()) as User
 }
 
-export async function register(name: string, email: string, password: string): Promise<User> {
+export async function register(name: string, email: string, password: string): Promise<RegisterResult> {
   const res = await apiFetch('/auth/register', {
     method: 'POST',
     body: JSON.stringify({ name, email, password }),
   })
   if (!res.ok) throw new Error(await readError(res))
-  return (await res.json()) as User
+  return (await res.json()) as RegisterResult
 }
 
 export async function login(email: string, password: string): Promise<User> {

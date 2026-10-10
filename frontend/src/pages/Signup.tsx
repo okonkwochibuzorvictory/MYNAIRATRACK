@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { register } from '../auth/client'
+import PasswordInput from '../components/PasswordInput'
 
 export default function Signup() {
   const [name, setName] = useState('')
@@ -7,19 +8,48 @@ export default function Signup() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const [needsVerification, setNeedsVerification] = useState(false)
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
     setError('')
     setBusy(true)
     try {
-      await register(name, email, password)
+      const user = await register(name, email, password)
+      if (user.verification_emailed) {
+        setNeedsVerification(true)
+        return
+      }
       window.location.hash = '#/setup'
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Sign up failed')
     } finally {
       setBusy(false)
     }
+  }
+
+  if (needsVerification) {
+    return (
+      <div className="mt-auth-wrap">
+        <main className="mt-auth-card">
+          <div className="mt-brand">
+            <span className="mt-brand-mark" aria-hidden="true">
+              ₦
+            </span>
+            <span className="mt-brand-name">
+              MYNAIRA<span>TRACK</span>
+            </span>
+          </div>
+          <h1>Check your email</h1>
+          <p className="mt-auth-sub">
+            We sent a verification link to {email}. Click it, then log in to continue.
+          </p>
+          <a className="mt-btn" style={{ textDecoration: 'none', textAlign: 'center' }} href="#/login">
+            Go to login
+          </a>
+        </main>
+      </div>
+    )
   }
 
   return (
@@ -57,17 +87,13 @@ export default function Signup() {
               required
             />
           </div>
-          <div className="mt-field">
-            <label htmlFor="signup-password">Password (min 8 chars, letters + numbers)</label>
-            <input
-              id="signup-password"
-              className="mt-input"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-          </div>
+          <PasswordInput
+            id="signup-password"
+            label="Password (min 8 chars, letters + numbers)"
+            value={password}
+            onChange={setPassword}
+            required
+          />
           {error && <p className="mt-error">{error}</p>}
           <button className="mt-btn" type="submit" disabled={busy}>
             {busy ? 'Creating…' : 'Create account'}

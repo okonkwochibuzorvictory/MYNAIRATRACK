@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { login } from '../auth/client'
+import PasswordInput from '../components/PasswordInput'
 
 export default function Login() {
   const [email, setEmail] = useState('')
@@ -46,17 +47,13 @@ export default function Login() {
               required
             />
           </div>
-          <div className="mt-field">
-            <label htmlFor="login-password">Password</label>
-            <input
-              id="login-password"
-              className="mt-input"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-          </div>
+          <PasswordInput
+            id="login-password"
+            label="Password"
+            value={password}
+            onChange={setPassword}
+            required
+          />
           {error && <p className="mt-error">{error}</p>}
           <button className="mt-btn" type="submit" disabled={busy}>
             {busy ? 'Logging in…' : 'Log in'}
@@ -64,6 +61,8 @@ export default function Login() {
         </form>
         <p className="mt-auth-foot">
           No account? <a href="#/signup">Sign up</a>
+          {' · '}
+          <a href="#/forgot-password">Forgot password?</a>
         </p>
       </main>
     </div>

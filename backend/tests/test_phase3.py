@@ -10,6 +10,7 @@ from datetime import datetime, timedelta, timezone
 os.environ["JWT_SECRET"] = "phase3-test-secret-do-not-use-in-prod"
 os.environ["JWT_EXPIRE_MINUTES"] = "60"
 os.environ["COOKIE_SECURE"] = "false"
+os.environ["RESEND_API_KEY"] = ""
 
 import jwt
 import psycopg
@@ -25,6 +26,14 @@ from app.seed import run_seed
 
 TEST_DATABASE_URL = "postgresql://mynaira:mynaira@localhost:5432/mynairatrack_test"
 COOKIE_NAME = "mynaira_token"
+
+
+def verify_user(email: str) -> None:
+    """Simulate a clicked verification link (the real flow is tested in test_email_auth.py)."""
+    with psycopg.connect(TEST_DATABASE_URL) as conn:
+        with conn.cursor() as cur:
+            cur.execute("UPDATE users SET is_verified = TRUE WHERE email = %s", (email,))
+        conn.commit()
 
 
 @pytest.fixture()
@@ -238,6 +247,7 @@ def test_update_name(client):
 
 def test_login_sets_cookie(client):
     assert register(client, email="login@example.com").status_code == 201
+    verify_user("login@example.com")
     from fastapi.testclient import TestClient as TC
 
     with TC(app) as fresh:

@@ -81,3 +81,23 @@ class UserOut(BaseModel):
     name: str
     email: str
     primary_currency: str
+    is_verified: bool = False
+
+
+class ForgotPasswordIn(BaseModel):
+    email: str
+
+    @field_validator("email")
+    @classmethod
+    def email_valid(cls, value: str) -> str:
+        return validate_email(value)
+
+
+class ResetPasswordIn(BaseModel):
+    token: str
+    password: str
+
+    @field_validator("password")
+    @classmethod
+    def password_valid(cls, value: str) -> str:
+        return validate_password(value)
