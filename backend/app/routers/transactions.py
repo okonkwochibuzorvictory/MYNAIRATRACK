@@ -24,6 +24,7 @@ from ..models import Account, Category, Transaction, User
 router = APIRouter(prefix="/transactions", tags=["transactions"])
 
 TXN_TYPES = ("income", "expense")
+BUSINESS_TXN_TYPES = ("income", "expense", "sale")
 
 
 class TransactionCreate(BaseModel):
@@ -35,12 +36,13 @@ class TransactionCreate(BaseModel):
     date: date_cls | None = None
     payment_method: str | None = None
     note: str | None = None
+    is_business: bool | None = None
 
     @field_validator("type")
     @classmethod
     def type_supported(cls, value: str) -> str:
-        if value not in TXN_TYPES:
-            raise ValueError("Type must be income or expense")
+        if value not in BUSINESS_TXN_TYPES:
+            raise ValueError("Type must be income, expense, or sale")
         return value
 
     @field_validator("amount")
@@ -85,12 +87,13 @@ class TransactionUpdate(BaseModel):
     date: date_cls | None = None
     payment_method: str | None = None
     note: str | None = None
+    is_business: bool | None = None
 
     @field_validator("type")
     @classmethod
     def type_supported(cls, value: str | None) -> str | None:
-        if value is not None and value not in TXN_TYPES:
-            raise ValueError("Type must be income or expense")
+        if value is not None and value not in BUSINESS_TXN_TYPES:
+            raise ValueError("Type must be income, expense, or sale")
         return value
 
     @field_validator("amount")
@@ -112,6 +115,15 @@ class TransactionUpdate(BaseModel):
         if value is not None:
             return validate_currency(value)
         return value
+
+
+def _require_business_mode(db: Session, current_user: User) -> None:
+    fresh = db.get(User, current_user.id)
+    if fresh is None or not fresh.business_mode:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Business Mode is not activated",
+        )
 
 
 def _owned_account(db: Session, user_id: int, account_id: int) -> Account:
@@ -142,11 +154,21 @@ def _checked_category(
             detail="Category must be a default category or your own",
         )
     if category.type != txn_type:
+        # Sales are inflow like income and use income categories.
+        if not (txn_type == "sale" and category.type == "income"):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Category must be an {txn_type} category",
+            )
+    return category
+
+
+def _require_sale_allowed(txn_type: str, account: Account) -> None:
+    if txn_type == "sale" and not account.is_business:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Category must be an {txn_type} category",
+            detail="Sales can only be recorded on business accounts",
         )
-    return category
 
 
 def to_txn_out(db: Session, txn: Transaction) -> dict:
@@ -188,7 +210,13 @@ def create_transaction(
     current_user: User = Depends(get_current_user),
 ) -> dict:
     account = _owned_account(db, current_user.id, data.account_id)
+    _require_sale_allowed(data.type, account)
     _checked_category(db, current_user.id, data.type, data.category_id)
+    if data.type == "sale" and data.is_business is False:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Sales are always business records",
+        )
     txn = Transaction(
         user_id=current_user.id,
         account_id=account.id,
@@ -199,7 +227,7 @@ def create_transaction(
         date=data.date or date_cls.today(),
         payment_method=data.payment_method,
         note=data.note.strip() if data.note and data.note.strip() else None,
-        is_business=account.is_business,
+        is_business=data.is_business if data.is_business is not None else account.is_business,
     )
     db.add(txn)
     db.commit()
@@ -215,13 +243,14 @@ def list_transactions(
     currency: str | None = Query(default=None),
     date_from: date_cls | None = Query(default=None),
     date_to: date_cls | None = Query(default=None),
+    business: bool | None = Query(default=None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> list[dict]:
-    if type is not None and type not in TXN_TYPES:
+    if type is not None and type not in BUSINESS_TXN_TYPES:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Type must be income or expense",
+            detail="Type must be income, expense, or sale",
         )
     if currency is not None:
         try:
@@ -232,6 +261,11 @@ def list_transactions(
                 detail="Currency must be one of NGN, USD, EUR, GBP",
             )
     q = db.query(Transaction).filter(Transaction.user_id == current_user.id)
+    if business is True:
+        _require_business_mode(db, current_user)
+        q = q.filter(Transaction.is_business.is_(True))
+    else:
+        q = q.filter(Transaction.is_business.is_(False))
     if type is not None:
         q = q.filter(Transaction.type == type)
     if account_id is not None:
@@ -252,7 +286,10 @@ def get_transaction(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict:
-    return to_txn_out(db, get_owned_txn(db, current_user.id, txn_id))
+    txn = get_owned_txn(db, current_user.id, txn_id)
+    if txn.is_business:
+        _require_business_mode(db, current_user)
+    return to_txn_out(db, txn)
 
 
 @router.patch("/{txn_id}")
@@ -263,11 +300,19 @@ def update_transaction(
     current_user: User = Depends(get_current_user),
 ) -> dict:
     txn = get_owned_txn(db, current_user.id, txn_id)
+    if txn.is_business:
+        _require_business_mode(db, current_user)
     new_type = data.type or txn.type
     if data.account_id is not None:
         account = _owned_account(db, current_user.id, data.account_id)
         txn.account_id = account.id
         txn.is_business = account.is_business
+    _require_sale_allowed(new_type, db.get(Account, txn.account_id))
+    if new_type == "sale" and data.is_business is False:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Sales are always business records",
+        )
     _checked_category(db, current_user.id, new_type, data.category_id)
     if data.type is not None:
         txn.type = data.type
@@ -285,6 +330,8 @@ def update_transaction(
         )
     if data.note is not None:
         txn.note = data.note.strip() if data.note.strip() else None
+    if data.is_business is not None:
+        txn.is_business = data.is_business
     db.add(txn)
     db.commit()
     db.refresh(txn)
@@ -299,6 +346,8 @@ def delete_transaction(
     current_user: User = Depends(get_current_user),
 ) -> dict:
     txn = get_owned_txn(db, current_user.id, txn_id)
+    if txn.is_business:
+        _require_business_mode(db, current_user)
     db.delete(txn)
     db.commit()
     evaluate_user_budgets(db, current_user.id)

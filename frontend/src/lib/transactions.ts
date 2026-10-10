@@ -7,6 +7,7 @@ export interface TxnCategory {
   id: number
   name: string
   type: string
+  is_business: boolean
 }
 
 export interface Transaction {
@@ -32,6 +33,7 @@ export interface TransactionForm {
   date: string
   payment_method: string
   note: string
+  business_override: boolean
 }
 
 export const EMPTY_TXN_FORM: TransactionForm = {
@@ -43,10 +45,15 @@ export const EMPTY_TXN_FORM: TransactionForm = {
   date: new Date().toISOString().slice(0, 10),
   payment_method: '',
   note: '',
+  business_override: false,
 }
 
 export function categoriesForType(categories: TxnCategory[], type: string): TxnCategory[] {
   return categories.filter((c) => c.type === type)
+}
+
+export function categoriesForScope(categories: TxnCategory[], business: boolean): TxnCategory[] {
+  return categories.filter((c) => (c.is_business ?? false) === business)
 }
 
 export function validateTransactionForm(
@@ -54,8 +61,8 @@ export function validateTransactionForm(
   accountCurrency: string | null,
 ): Record<string, string> {
   const errors: Record<string, string> = {}
-  if (form.type !== 'income' && form.type !== 'expense')
-    errors.type = 'Choose income or expense'
+  if (form.type !== 'income' && form.type !== 'expense' && form.type !== 'sale')
+    errors.type = 'Choose income, expense, or sale'
   if (!form.account_id) errors.account_id = 'Choose an account'
   const amount = Number(form.amount)
   if (form.amount.trim() === '' || !Number.isFinite(amount))
@@ -138,6 +145,7 @@ export async function createTransaction(form: TransactionForm): Promise<Transact
       date: form.date,
       payment_method: form.payment_method.trim() || null,
       note: form.note.trim() || null,
+      is_business: form.business_override ? true : undefined,
     }),
   })
   if (!res.ok) throw new Error(await readError(res))

@@ -18,6 +18,7 @@ export interface Budget {
   currency: string
   period_start: string
   period_end: string
+  is_business: boolean
   total_allocated?: string
   total_spent: string
   remaining: string
@@ -38,6 +39,7 @@ export interface BudgetForm {
   currency: string
   period_start: string
   period_end: string
+  is_business?: boolean
   allocations: AllocationDraft[]
 }
 
@@ -47,6 +49,7 @@ export const EMPTY_BUDGET_FORM: BudgetForm = {
   currency: 'NGN',
   period_start: new Date().toISOString().slice(0, 10),
   period_end: new Date().toISOString().slice(0, 10),
+  is_business: false,
   allocations: [],
 }
 
@@ -102,8 +105,9 @@ async function readError(res: Response): Promise<string> {
   }
 }
 
-export async function fetchBudgets(): Promise<Budget[]> {
-  const res = await apiFetch('/budgets')
+export async function fetchBudgets(business = false): Promise<Budget[]> {
+  const params = business ? '?business=true' : ''
+  const res = await apiFetch(`/budgets${params}`)
   if (!res.ok) throw new Error(await readError(res))
   return (await res.json()) as Budget[]
 }
@@ -123,6 +127,7 @@ export async function createBudget(form: BudgetForm): Promise<Budget> {
       currency: form.currency,
       period_start: form.period_start,
       period_end: form.period_end,
+      is_business: form.is_business,
       allocations: form.allocations.map((a) => ({
         category_id: Number(a.category_id),
         allocated_amount: a.allocated_amount,

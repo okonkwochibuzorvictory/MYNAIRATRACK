@@ -5,14 +5,16 @@ export interface Category {
   name: string
   type: string
   is_default: boolean
+  is_business: boolean
 }
 
 export interface CategoryForm {
   name: string
   type: string
+  is_business?: boolean
 }
 
-export const EMPTY_CATEGORY_FORM: CategoryForm = { name: '', type: 'expense' }
+export const EMPTY_CATEGORY_FORM: CategoryForm = { name: '', type: 'expense', is_business: false }
 
 export function splitByType(categories: Category[]): { income: Category[]; expense: Category[] } {
   return {
@@ -49,7 +51,7 @@ export async function fetchCategories(): Promise<Category[]> {
 export async function createCategory(form: CategoryForm): Promise<Category> {
   const res = await apiFetch('/categories', {
     method: 'POST',
-    body: JSON.stringify({ name: form.name.trim(), type: form.type }),
+    body: JSON.stringify({ name: form.name.trim(), type: form.type, is_business: form.is_business }),
   })
   if (!res.ok) throw new Error(await readError(res))
   return (await res.json()) as Category

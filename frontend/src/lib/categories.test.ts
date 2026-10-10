@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest'
 import { splitByType, validateCategoryForm, type Category } from './categories'
 
 const CATS: Category[] = [
-  { id: 1, name: 'Food', type: 'expense', is_default: true },
-  { id: 2, name: 'Salary', type: 'income', is_default: true },
-  { id: 3, name: 'Airtime', type: 'expense', is_default: false },
+  { id: 1, name: 'Food', type: 'expense', is_default: true, is_business: false },
+  { id: 2, name: 'Salary', type: 'income', is_default: true, is_business: false },
+  { id: 3, name: 'Airtime', type: 'expense', is_default: false, is_business: false },
 ]
 
 describe('category splitting', () => {

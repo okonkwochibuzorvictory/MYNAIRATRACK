@@ -8,7 +8,7 @@ amounts are never merged. All access is scoped to the authenticated user.
 
 from decimal import Decimal
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, field_validator
 from sqlalchemy.orm import Session
 
@@ -119,6 +119,15 @@ def to_account_out(db: Session, account: Account) -> dict:
     }
 
 
+def _require_business_mode(db: Session, current_user: User) -> None:
+    fresh = db.get(User, current_user.id)
+    if fresh is None or not fresh.business_mode:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Business Mode is not activated",
+        )
+
+
 def get_owned_account(db: Session, user_id: int, account_id: int) -> Account:
     account = (
         db.query(Account)
@@ -155,15 +164,17 @@ def create_account(
 
 @router.get("")
 def list_accounts(
+    business: bool | None = Query(default=None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> list[dict]:
-    accounts = (
-        db.query(Account)
-        .filter(Account.user_id == current_user.id)
-        .order_by(Account.id)
-        .all()
-    )
+    q = db.query(Account).filter(Account.user_id == current_user.id)
+    if business is True:
+        _require_business_mode(db, current_user)
+        q = q.filter(Account.is_business.is_(True))
+    else:
+        q = q.filter(Account.is_business.is_(False))
+    accounts = q.order_by(Account.id).all()
     return [to_account_out(db, a) for a in accounts]
 
 
@@ -173,7 +184,10 @@ def get_account(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict:
-    return to_account_out(db, get_owned_account(db, current_user.id, account_id))
+    account = get_owned_account(db, current_user.id, account_id)
+    if account.is_business:
+        _require_business_mode(db, current_user)
+    return to_account_out(db, account)
 
 
 @router.patch("/{account_id}")
@@ -184,6 +198,8 @@ def update_account(
     current_user: User = Depends(get_current_user),
 ) -> dict:
     account = get_owned_account(db, current_user.id, account_id)
+    if account.is_business:
+        _require_business_mode(db, current_user)
     if data.currency is not None and data.currency != account.currency:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -210,6 +226,8 @@ def delete_account(
     current_user: User = Depends(get_current_user),
 ) -> dict:
     account = get_owned_account(db, current_user.id, account_id)
+    if account.is_business:
+        _require_business_mode(db, current_user)
     txn_count = (
         db.query(Transaction).filter(Transaction.account_id == account.id).count()
     )

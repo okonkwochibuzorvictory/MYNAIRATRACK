@@ -98,8 +98,10 @@ def test_list_shows_defaults(client):
     register(client)
     rows = client.get("/categories").json()
     assert all(c["is_default"] for c in rows)
-    assert len([c for c in rows if c["type"] == "expense"]) == 13
-    assert len([c for c in rows if c["type"] == "income"]) == 6
+    assert len([c for c in rows if c["type"] == "expense"]) == 21
+    assert len([c for c in rows if c["type"] == "income"]) == 13
+    assert {c["name"] for c in rows if c["is_business"] and c["type"] == "income"} >= {
+        "Sales of Goods", "Service Income"}
 
 
 def test_create_custom_categories(client):

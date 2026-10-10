@@ -32,6 +32,7 @@ def budget_spent(db: Session, user_id: int, budget: Budget) -> Decimal:
         .filter(
             Transaction.user_id == user_id,
             Transaction.type == "expense",
+            Transaction.is_business.is_(budget.is_business),
             Transaction.currency == budget.currency,
             Transaction.date >= budget.period_start,
             Transaction.date <= budget.period_end,

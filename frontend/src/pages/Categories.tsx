@@ -19,6 +19,7 @@ export default function Categories() {
   const [editing, setEditing] = useState<Category | null>(null)
   const [name, setName] = useState('')
   const [formType, setFormType] = useState('expense')
+  const [formScope, setFormScope] = useState(false)
   const [formErrors, setFormErrors] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState(false)
 
@@ -36,6 +37,7 @@ export default function Categories() {
     setEditing(null)
     setName('')
     setFormType(tab)
+    setFormScope(false)
     setFormErrors({})
     setError('')
     setMessage('')
@@ -65,7 +67,7 @@ export default function Categories() {
         await updateCategory(editing.id, { name: name.trim() })
         setMessage('Category updated.')
       } else {
-        await createCategory({ name: name.trim(), type: formType })
+        await createCategory({ name: name.trim(), type: formType, is_business: formScope })
         setMessage('Category created.')
       }
       setShowForm(false)
@@ -160,7 +162,12 @@ export default function Categories() {
                     <strong>{c.name}</strong>{' '}
                     <span className="mt-soon" style={{ marginLeft: 0 }}>
                       {c.is_default ? 'Default' : 'Custom'}
-                    </span>
+                    </span>{' '}
+                    {c.is_business && (
+                      <span className="mt-soon" style={{ marginLeft: 0 }}>
+                        Business
+                      </span>
+                    )}
                   </div>
                   {!c.is_default && (
                     <span style={{ display: 'inline-flex', gap: '0.5rem' }}>
@@ -224,6 +231,18 @@ export default function Categories() {
               )}
               {formErrors.type && <p className="mt-error">{formErrors.type}</p>}
             </div>
+            {!editing && (
+              <div className="mt-field">
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={formScope}
+                    onChange={(e) => setFormScope(e.target.checked)}
+                  />{' '}
+                  Business category — shown in Business Mode forms instead of personal forms
+                </label>
+              </div>
+            )}
             <p style={{ display: 'flex', gap: '0.75rem' }}>
               <button className="mt-btn" style={{ width: 'auto' }} type="submit" disabled={busy}>
                 {busy ? 'Saving…' : editing ? 'Save changes' : 'Create category'}

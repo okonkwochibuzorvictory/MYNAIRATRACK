@@ -57,7 +57,7 @@ def test_migrations_are_idempotent(test_db):
 def test_seed_is_idempotent(test_db):
     first = run_seed(test_db)
     second = run_seed(test_db)
-    assert first == second == {"currencies": 4, "default_categories": 19}
+    assert first == second == {"currencies": 4, "default_categories": 34}
 
 
 def test_mvp_currencies_present(test_db):
@@ -101,12 +101,12 @@ def test_default_categories_seeded(test_db):
         test_db,
         "SELECT COUNT(*) FROM categories WHERE is_default = TRUE AND type = 'expense'",
     )
-    assert rows[0][0] == 13
+    assert rows[0][0] == 21
     rows = query(
         test_db,
         "SELECT COUNT(*) FROM categories WHERE is_default = TRUE AND type = 'income'",
     )
-    assert rows[0][0] == 6
+    assert rows[0][0] == 13
 
 
 def test_negative_amount_rejected(test_db):

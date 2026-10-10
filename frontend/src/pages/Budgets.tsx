@@ -1,19 +1,18 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import AppShell from '../components/AppShell'
-import AlertPrefs from '../components/AlertPrefs'
 import BalanceToggle from '../components/BalanceToggle'
+import BudgetDetails, { Progress } from '../components/BudgetDetails'
+import BudgetFormEditor from '../components/BudgetForm'
 import { Card, EmptyState, SectionHead } from '../components/ui'
 import { fetchAccounts } from '../lib/accounts'
 import {
   EMPTY_BUDGET_FORM,
   addAllocation,
-  allocationTotals,
   createBudget,
   deleteBudget,
   fetchBudget,
   fetchBudgets,
   removeAllocation,
-  statusColor,
   updateBudget,
   validateBudgetForm,
   type AllocationDraft,
@@ -21,22 +20,8 @@ import {
   type BudgetForm,
 } from '../lib/budgets'
 import { fetchCategories, type Category } from '../lib/categories'
-import { CURRENCY_SYMBOLS, formatOriginal } from '../lib/currency'
+import { formatOriginal } from '../lib/currency'
 import { DEFAULT_BALANCE_VISIBLE, displayBalance } from '../lib/privacy'
-
-function Progress({ pct, status }: { pct: number; status: string }) {
-  const width = Math.max(0, Math.min(100, pct))
-  return (
-    <>
-      <div className="mt-progress" role="progressbar" aria-valuenow={Math.round(pct)} aria-valuemin={0} aria-valuemax={100}>
-        <span style={{ width: `${width}%`, background: statusColor(status) }} />
-      </div>
-      <span className="mt-status" style={{ color: statusColor(status) }}>
-        {status} · {Math.round(pct)}%
-      </span>
-    </>
-  )
-}
 
 export default function Budgets() {
   const [budgets, setBudgets] = useState<Budget[] | null>(null)
@@ -80,7 +65,7 @@ export default function Budgets() {
 
   function openCreate(primary: string) {
     setEditing(null)
-    setForm({ ...EMPTY_BUDGET_FORM, currency: primary || 'NGN', allocations: [] })
+    setForm({ ...EMPTY_BUDGET_FORM, currency: primary || 'NGN', is_business: false, allocations: [] })
     setFormErrors({})
     setError('')
     setMessage('')
@@ -169,8 +154,6 @@ export default function Budgets() {
     }
   }
 
-  const { allocated, remaining } = allocationTotals(form)
-
   return (
     <AppShell active="budgets" title="Budgets" subtitle="Plan spending by category and watch it stay on track.">
       <SectionHead
@@ -236,7 +219,7 @@ export default function Budgets() {
         </div>
       )}
 
-      {selected && (
+      {selected && !selected.is_business && (
         <BudgetDetails
           budget={selected}
           categories={categories}
@@ -252,342 +235,23 @@ export default function Budgets() {
       {showForm && (
         <Card>
           <h2 style={{ marginTop: 0 }}>{editing ? 'Edit budget' : 'Create budget'}</h2>
-          {!hasAccounts && !editing && (
-            <p className="mt-stat-sub">
-              Tip: budgets work best with accounts and transactions. You can still set one up now.
-            </p>
-          )}
-          <form onSubmit={onSubmit}>
-            <div className="mt-field">
-              <label htmlFor="bud-name">Budget name *</label>
-              <input
-                id="bud-name"
-                className="mt-input"
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-                required
-              />
-              {formErrors.name && <p className="mt-error">{formErrors.name}</p>}
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
-              <div className="mt-field">
-                <label htmlFor="bud-amount">Total amount *</label>
-                <input
-                  id="bud-amount"
-                  className="mt-input"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={form.amount}
-                  onChange={(e) => setForm({ ...form, amount: e.target.value })}
-                  required
-                />
-                {formErrors.amount && <p className="mt-error">{formErrors.amount}</p>}
-              </div>
-              <div className="mt-field">
-                <label htmlFor="bud-currency">Currency *</label>
-                {editing ? (
-                  <p className="mt-stat-sub">
-                    {form.currency} — currency cannot be changed once the budget has spending.
-                  </p>
-                ) : (
-                  <select
-                    id="bud-currency"
-                    className="mt-select"
-                    value={form.currency}
-                    onChange={(e) => setForm({ ...form, currency: e.target.value })}
-                  >
-                    {['NGN', 'USD', 'EUR', 'GBP'].map((c) => (
-                      <option key={c} value={c}>
-                        {c} {CURRENCY_SYMBOLS[c] ?? ''}
-                      </option>
-                    ))}
-                  </select>
-                )}
-                {formErrors.currency && <p className="mt-error">{formErrors.currency}</p>}
-              </div>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
-              <div className="mt-field">
-                <label htmlFor="bud-start">Start date *</label>
-                <input
-                  id="bud-start"
-                  className="mt-input"
-                  type="date"
-                  value={form.period_start}
-                  onChange={(e) => setForm({ ...form, period_start: e.target.value })}
-                  required
-                />
-              </div>
-              <div className="mt-field">
-                <label htmlFor="bud-end">End date *</label>
-                <input
-                  id="bud-end"
-                  className="mt-input"
-                  type="date"
-                  value={form.period_end}
-                  onChange={(e) => setForm({ ...form, period_end: e.target.value })}
-                  required
-                />
-                {formErrors.period_end && <p className="mt-error">{formErrors.period_end}</p>}
-              </div>
-            </div>
-            {!editing && (
-              <AllocationEditor
-                allocations={form.allocations}
-                categories={categories}
-                currency={form.currency}
-                onChange={(allocations) => setForm({ ...form, allocations })}
-              />
-            )}
-            <p className="mt-stat-sub">
-              Allocated {formatOriginal(allocated.toFixed(2), form.currency)} ·{' '}
-              {remaining >= 0
-                ? `${formatOriginal(remaining.toFixed(2), form.currency)} unassigned`
-                : 'Over-allocated — reduce an amount'}
-            </p>
-            {formErrors.allocations && <p className="mt-error">{formErrors.allocations}</p>}
-            <p style={{ display: 'flex', gap: '0.75rem' }}>
-              <button className="mt-btn" style={{ width: 'auto' }} type="submit" disabled={busy}>
-                {busy ? 'Saving…' : editing ? 'Save changes' : 'Create budget'}
-              </button>
-              <button
-                className="mt-btn mt-btn-secondary"
-                style={{ width: 'auto' }}
-                type="button"
-                onClick={() => {
-                  setShowForm(false)
-                  setEditing(null)
-                }}
-              >
-                Cancel
-              </button>
-            </p>
-          </form>
+          <BudgetFormEditor
+            form={form}
+            setForm={setForm}
+            formErrors={formErrors}
+            editing={editing !== null}
+            categories={categories}
+            busy={busy}
+            hasAccounts={hasAccounts}
+            isBusinessLocked={false}
+            onSubmit={onSubmit}
+            onCancel={() => {
+              setShowForm(false)
+              setEditing(null)
+            }}
+          />
         </Card>
       )}
     </AppShell>
-  )
-}
-
-function AllocationEditor({
-  allocations,
-  categories,
-  currency,
-  onChange,
-}: {
-  allocations: AllocationDraft[]
-  categories: Category[]
-  currency: string
-  onChange: (a: AllocationDraft[]) => void
-}) {
-  function add() {
-    onChange([...allocations, { category_id: '', allocated_amount: '' }])
-  }
-  return (
-    <div className="mt-field">
-      <span style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.35rem' }}>
-        Category allocations (expense categories only)
-      </span>
-      {allocations.length === 0 && (
-        <p className="mt-stat-sub">None yet — the full amount stays unassigned until you allocate it.</p>
-      )}
-      {allocations.map((a, i) => (
-        <div key={i} style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
-          <select
-            className="mt-select"
-            value={a.category_id}
-            aria-label={`Allocation ${i + 1} category`}
-            onChange={(e) => {
-              const next = [...allocations]
-              next[i] = { ...next[i], category_id: e.target.value }
-              onChange(next)
-            }}
-          >
-            <option value="">Select category</option>
-            {categories.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-          <input
-            className="mt-input"
-            type="number"
-            min="0"
-            step="0.01"
-            style={{ maxWidth: 160 }}
-            placeholder={currency}
-            aria-label={`Allocation ${i + 1} amount`}
-            value={a.allocated_amount}
-            onChange={(e) => {
-              const next = [...allocations]
-              next[i] = { ...next[i], allocated_amount: e.target.value }
-              onChange(next)
-            }}
-          />
-          <button
-            type="button"
-            className="mt-btn mt-btn-secondary"
-            style={{ width: 'auto' }}
-            onClick={() => onChange(allocations.filter((_, j) => j !== i))}
-          >
-            ✕
-          </button>
-        </div>
-      ))}
-      <button type="button" className="mt-btn mt-btn-secondary" style={{ width: 'auto' }} onClick={add}>
-        + Add allocation
-      </button>
-    </div>
-  )
-}
-
-function BudgetDetails({
-  budget,
-  categories,
-  onAddAllocation,
-  onRemoveAllocation,
-  onEdit,
-  onDelete,
-  onClose,
-  showAmounts,
-}: {
-  budget: Budget
-  categories: Category[]
-  onAddAllocation: (b: Budget, d: AllocationDraft) => void
-  onRemoveAllocation: (b: Budget, id: number) => void
-  onEdit: () => void
-  onDelete: () => void
-  onClose: () => void
-  showAmounts: boolean
-}) {
-  const [catId, setCatId] = useState('')
-  const [amount, setAmount] = useState('')
-  const usedIds = new Set((budget.allocations ?? []).map((a) => String(a.category_id)))
-  const available = categories.filter((c) => !usedIds.has(String(c.id)))
-
-  return (
-    <Card>
-      <p className="mt-card-label">
-        {budget.currency} · {budget.period_start} → {budget.period_end}
-      </p>
-      <h2 style={{ margin: '0 0 0.25rem' }}>{budget.name}</h2>
-      <p className="mt-stat-value">
-        {displayBalance(`${formatOriginal(budget.total_spent, budget.currency)} spent`, showAmounts)}
-      </p>
-      <p className="mt-stat-sub">
-        of {formatOriginal(budget.amount, budget.currency)} · allocated{' '}
-        {formatOriginal(budget.total_allocated ?? '0', budget.currency)} ·{' '}
-        {displayBalance(`${formatOriginal(budget.remaining, budget.currency)} left`, showAmounts)}
-      </p>
-      <Progress pct={budget.percent_used} status={budget.status} />
-      <h3 style={{ marginBottom: '0.25rem' }}>Category breakdown</h3>
-      {(budget.allocations ?? []).length === 0 ? (
-        <p className="mt-stat-sub">No allocations yet — the whole budget is unassigned.</p>
-      ) : (
-        <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
-          {(budget.allocations ?? []).map((a) => (
-            <li key={a.id} style={{ padding: '0.6rem 0', borderTop: '1px solid var(--mt-border)' }}>
-              <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'baseline' }}>
-                <span style={{ flex: 1 }}>
-                  <strong>{a.category_name ?? 'Unknown'}</strong>
-                  <div className="mt-stat-sub">
-                    {displayBalance(formatOriginal(a.spent, budget.currency), showAmounts)} of{' '}
-                    {formatOriginal(a.allocated_amount, budget.currency)}
-                  </div>
-                </span>
-                <span className="mt-status" style={{ color: statusColor(a.status) }}>
-                  {a.status}
-                </span>
-                <button
-                  type="button"
-                  className="mt-btn mt-btn-secondary"
-                  style={{ width: 'auto', padding: '0.4rem 0.8rem' }}
-                  onClick={() => onRemoveAllocation(budget, a.id)}
-                >
-                  Remove
-                </button>
-              </div>
-              <div className="mt-progress" role="progressbar" aria-valuenow={Math.round(a.percent_used)} aria-valuemin={0} aria-valuemax={100}>
-                <span
-                  style={{
-                    width: `${Math.max(0, Math.min(100, a.percent_used))}%`,
-                    background: statusColor(a.status),
-                  }}
-                />
-              </div>
-            </li>
-          ))}
-        </ul>
-      )}
-      {budget.unallocated_spending && Number(budget.unallocated_spending) > 0 && (
-        <p className="mt-stat-sub">
-          Unallocated spending:{' '}
-          {displayBalance(formatOriginal(budget.unallocated_spending, budget.currency), showAmounts)}{' '}
-          — expenses in {budget.currency} during this period in categories you did not allocate.
-        </p>
-      )}
-      <p className="mt-stat-sub">
-        Only {budget.currency} expenses in this period count. Other currencies are never converted
-        into this budget.
-      </p>
-      <div className="mt-field">
-        <span style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.35rem' }}>
-          Alert preferences
-        </span>
-        <AlertPrefs budgetId={budget.id} />
-      </div>
-      <div className="mt-field" style={{ marginTop: '1rem' }}>
-        <span style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.35rem' }}>
-          Add allocation
-        </span>
-        <div style={{ display: 'flex', gap: '0.5rem' }}>
-          <select className="mt-select" value={catId} aria-label="New allocation category" onChange={(e) => setCatId(e.target.value)}>
-            <option value="">Select category</option>
-            {available.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-          <input
-            className="mt-input"
-            type="number"
-            min="0"
-            step="0.01"
-            style={{ maxWidth: 160 }}
-            placeholder={budget.currency}
-            aria-label="New allocation amount"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-          />
-          <button
-            type="button"
-            className="mt-btn"
-            style={{ width: 'auto' }}
-            disabled={!catId || !amount}
-            onClick={() => {
-              onAddAllocation(budget, { category_id: catId, allocated_amount: amount })
-              setCatId('')
-              setAmount('')
-            }}
-          >
-            Add
-          </button>
-        </div>
-      </div>
-      <p style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-        <button type="button" className="mt-btn mt-btn-secondary" style={{ width: 'auto' }} onClick={onEdit}>
-          Edit budget
-        </button>
-        <button type="button" className="mt-btn mt-btn-secondary" style={{ width: 'auto' }} onClick={onDelete}>
-          Delete budget
-        </button>
-        <button type="button" className="mt-btn mt-btn-secondary" style={{ width: 'auto' }} onClick={onClose}>
-          Close
-        </button>
-      </p>
-    </Card>
   )
 }

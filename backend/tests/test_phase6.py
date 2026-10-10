@@ -370,9 +370,11 @@ def test_categories_list_returns_defaults(client):
     rows = r.json()
     expense = [c for c in rows if c["type"] == "expense"]
     income = [c for c in rows if c["type"] == "income"]
-    assert len(expense) == 13
-    assert len(income) == 6
+    assert len(expense) == 21
+    assert len(income) == 13
     assert {c["name"] for c in income} >= {"Salary", "Freelance"}
+    assert {c["name"] for c in expense if c["is_business"]} >= {
+        "Cost of Goods Sold", "Staff Salaries", "Shop Rent"}
 
 
 def test_categories_require_auth():

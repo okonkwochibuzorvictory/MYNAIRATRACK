@@ -27,6 +27,7 @@ CATEGORY_TYPES = ("income", "expense")
 class CategoryCreate(BaseModel):
     name: str
     type: str
+    is_business: bool = False
 
     @field_validator("name")
     @classmethod
@@ -65,6 +66,7 @@ def to_category_out(row: Category) -> dict:
         "name": row.name,
         "type": row.type,
         "is_default": row.is_default,
+        "is_business": row.is_business,
     }
 
 
@@ -122,7 +124,8 @@ def list_categories(
         .all()
     )
     return [
-        {"id": r.id, "name": r.name, "type": r.type, "is_default": r.is_default}
+        {"id": r.id, "name": r.name, "type": r.type, "is_default": r.is_default,
+         "is_business": r.is_business}
         for r in rows
     ]
 
@@ -143,6 +146,7 @@ def create_category(
         name=data.name,
         type=data.type,
         is_default=False,
+        is_business=data.is_business,
     )
     db.add(row)
     db.commit()

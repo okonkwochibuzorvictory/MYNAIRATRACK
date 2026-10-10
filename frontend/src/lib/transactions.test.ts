@@ -10,8 +10,8 @@ import {
 } from './transactions'
 
 const CATS: TxnCategory[] = [
-  { id: 1, name: 'Salary', type: 'income' },
-  { id: 2, name: 'Food', type: 'expense' },
+  { id: 1, name: 'Salary', type: 'income', is_business: false },
+  { id: 2, name: 'Food', type: 'expense', is_business: false },
 ]
 
 const TXNS: Transaction[] = [

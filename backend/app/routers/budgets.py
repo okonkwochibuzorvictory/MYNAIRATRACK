@@ -14,7 +14,7 @@ Deleting a budget removes only the budget and its allocations.
 from datetime import date as date_cls
 from decimal import Decimal
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, field_validator
 from sqlalchemy.orm import Session
 
@@ -55,6 +55,7 @@ class BudgetCreate(BaseModel):
     currency: str
     period_start: date_cls
     period_end: date_cls
+    is_business: bool = False
     allocations: list[AllocationIn] = []
 
     @field_validator("name")
@@ -134,6 +135,22 @@ def _owned_budget(db: Session, user_id: int, budget_id: int) -> Budget:
     return budget
 
 
+def _require_business_mode(db: Session, current_user: User) -> None:
+    fresh = db.get(User, current_user.id)
+    if fresh is None or not fresh.business_mode:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Business Mode is not activated",
+        )
+
+
+def _gated_budget(db: Session, current_user: User, budget_id: int) -> Budget:
+    budget = _owned_budget(db, current_user.id, budget_id)
+    if budget.is_business:
+        _require_business_mode(db, current_user)
+    return budget
+
+
 def _checked_expense_category(
     db: Session, user_id: int, category_id: int
 ) -> Category:
@@ -159,6 +176,7 @@ def _matching_expenses(db: Session, user_id: int, budget: Budget):
         .filter(
             Transaction.user_id == user_id,
             Transaction.type == "expense",
+            Transaction.is_business.is_(budget.is_business),
             Transaction.currency == budget.currency,
             Transaction.date >= budget.period_start,
             Transaction.date <= budget.period_end,
@@ -229,6 +247,7 @@ def to_budget_out(db: Session, user_id: int, budget: Budget, detailed: bool) -> 
         "currency": budget.currency,
         "period_start": budget.period_start.isoformat(),
         "period_end": budget.period_end.isoformat(),
+        "is_business": budget.is_business,
     }
     monitoring = _monitoring(db, user_id, budget)
     payload.update(monitoring if detailed else {k: monitoring[k] for k in (
@@ -278,6 +297,7 @@ def create_budget(
         currency=data.currency,
         period_start=data.period_start,
         period_end=data.period_end,
+        is_business=data.is_business,
     )
     db.add(budget)
     db.flush()
@@ -296,15 +316,17 @@ def create_budget(
 
 @router.get("")
 def list_budgets(
+    business: bool | None = Query(default=None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> list[dict]:
-    budgets = (
-        db.query(Budget)
-        .filter(Budget.user_id == current_user.id)
-        .order_by(Budget.id)
-        .all()
-    )
+    q = db.query(Budget).filter(Budget.user_id == current_user.id)
+    if business is True:
+        _require_business_mode(db, current_user)
+        q = q.filter(Budget.is_business.is_(True))
+    else:
+        q = q.filter(Budget.is_business.is_(False))
+    budgets = q.order_by(Budget.id).all()
     return [to_budget_out(db, current_user.id, b, detailed=False) for b in budgets]
 
 
@@ -315,7 +337,7 @@ def get_budget(
     current_user: User = Depends(get_current_user),
 ) -> dict:
     return to_budget_out(
-        db, current_user.id, _owned_budget(db, current_user.id, budget_id), detailed=True
+        db, current_user.id, _gated_budget(db, current_user, budget_id), detailed=True
     )
 
 
@@ -326,7 +348,7 @@ def update_budget(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict:
-    budget = _owned_budget(db, current_user.id, budget_id)
+    budget = _gated_budget(db, current_user, budget_id)
     new_start = data.period_start or budget.period_start
     new_end = data.period_end or budget.period_end
     if new_end < new_start:
@@ -370,7 +392,7 @@ def delete_budget(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict:
-    budget = _owned_budget(db, current_user.id, budget_id)
+    budget = _gated_budget(db, current_user, budget_id)
     db.delete(budget)
     db.commit()
     return {"ok": True}
@@ -383,7 +405,7 @@ def add_allocation(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict:
-    budget = _owned_budget(db, current_user.id, budget_id)
+    budget = _gated_budget(db, current_user, budget_id)
     _checked_expense_category(db, current_user.id, data.category_id)
     existing = (
         db.query(BudgetAllocation)
@@ -433,7 +455,7 @@ def update_allocation(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict:
-    budget = _owned_budget(db, current_user.id, budget_id)
+    budget = _gated_budget(db, current_user, budget_id)
     row = (
         db.query(BudgetAllocation)
         .filter(
@@ -488,7 +510,7 @@ def delete_allocation(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict:
-    budget = _owned_budget(db, current_user.id, budget_id)
+    budget = _gated_budget(db, current_user, budget_id)
     row = (
         db.query(BudgetAllocation)
         .filter(

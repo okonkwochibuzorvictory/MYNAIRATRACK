@@ -3,6 +3,7 @@ import type { Account } from '../lib/accounts'
 import { formatOriginal } from '../lib/currency'
 import {
   EMPTY_TXN_FORM,
+  categoriesForScope,
   categoriesForType,
   validateTransactionForm,
   type Transaction,
@@ -15,6 +16,7 @@ interface Props {
   categories: TxnCategory[]
   initial?: Transaction | null
   defaultCurrency: string
+  business: boolean
   busy: boolean
   serverError: string
   onSubmit: (form: TransactionForm) => void
@@ -26,6 +28,7 @@ export default function TransactionForm({
   categories,
   initial,
   defaultCurrency,
+  business,
   busy,
   serverError,
   onSubmit,
@@ -46,6 +49,7 @@ export default function TransactionForm({
         date: initial.date,
         payment_method: initial.payment_method ?? '',
         note: initial.note ?? '',
+        business_override: false,
       })
       setShowDetails(true)
     } else {
@@ -54,7 +58,12 @@ export default function TransactionForm({
   }, [initial, defaultCurrency])
 
   const account = accounts.find((a) => String(a.id) === form.account_id) ?? null
-  const visibleCategories = categoriesForType(categories, form.type)
+  const visibleCategories = categoriesForScope(
+    categoriesForType(categories, form.type === 'sale' ? 'income' : form.type),
+    business,
+  )
+  const typeOptions: Array<'income' | 'expense' | 'sale'> =
+    account?.is_business === true ? ['income', 'expense', 'sale'] : ['income', 'expense']
 
   function set<K extends keyof TransactionForm>(key: K, value: TransactionForm[K]) {
     setForm((f) => {
@@ -85,7 +94,7 @@ export default function TransactionForm({
           Type *
         </span>
         <span style={{ display: 'inline-flex', gap: '0.5rem' }}>
-          {(['income', 'expense'] as const).map((t) => (
+          {typeOptions.map((t) => (
             <button
               key={t}
               type="button"
@@ -94,7 +103,7 @@ export default function TransactionForm({
               aria-pressed={form.type === t}
               onClick={() => set('type', t)}
             >
-              {t === 'income' ? '+ Income' : '− Expense'}
+              {t === 'income' ? '+ Income' : t === 'sale' ? '◈ Sale' : '− Expense'}
             </button>
           ))}
         </span>
@@ -218,6 +227,18 @@ export default function TransactionForm({
         </>
       )}
       {serverError && <p className="mt-error">{serverError}</p>}
+      {!initial && account && !account.is_business && (form.type === 'income' || form.type === 'expense') && (
+        <div className="mt-field">
+          <label>
+            <input
+              type="checkbox"
+              checked={form.business_override}
+              onChange={(e) => set('business_override', e.target.checked)}
+            />{' '}
+            Business transaction — funded from this personal account, counted in business reports only
+          </label>
+        </div>
+      )}
       <p style={{ display: 'flex', gap: '0.75rem' }}>
         <button className="mt-btn" style={{ width: 'auto' }} type="submit" disabled={busy}>
           {busy ? 'Saving…' : initial ? 'Save changes' : 'Save'}

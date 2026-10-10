@@ -46,6 +46,29 @@ DEFAULT_INCOME_CATEGORIES = [
     "Other",
 ]
 
+# Business-mode default categories (is_business TRUE). Personal defaults
+# above stay untouched; business forms offer these instead.
+BUSINESS_INCOME_CATEGORIES = [
+    "Sales of Goods",
+    "Service Income",
+    "Business Loan Received",
+    "Sponsorship & Grants",
+    "Commission Received",
+    "Rental Income",
+    "Business Other Income",
+]
+
+BUSINESS_EXPENSE_CATEGORIES = [
+    "Cost of Goods Sold",
+    "Staff Salaries",
+    "Shop Rent",
+    "Business Transport",
+    "Marketing & Advertising",
+    "Business Utilities",
+    "Loan Repayment",
+    "Business Other",
+]
+
 
 def get_database_url() -> str:
     url = os.getenv("DATABASE_URL", "")
@@ -82,11 +105,35 @@ def run_seed(database_url: str | None = None) -> dict:
             for name in DEFAULT_INCOME_CATEGORIES:
                 cur.execute(
                     """
-                    INSERT INTO categories (user_id, name, type, is_default)
-                    SELECT NULL, %s, 'income', TRUE
+                    INSERT INTO categories (user_id, name, type, is_default, is_business)
+                    SELECT NULL, %s, 'income', TRUE, FALSE
                     WHERE NOT EXISTS (
                         SELECT 1 FROM categories
                         WHERE user_id IS NULL AND name = %s AND type = 'income'
+                    )
+                    """,
+                    (name, name),
+                )
+            for name in BUSINESS_INCOME_CATEGORIES:
+                cur.execute(
+                    """
+                    INSERT INTO categories (user_id, name, type, is_default, is_business)
+                    SELECT NULL, %s, 'income', TRUE, TRUE
+                    WHERE NOT EXISTS (
+                        SELECT 1 FROM categories
+                        WHERE user_id IS NULL AND name = %s AND type = 'income'
+                    )
+                    """,
+                    (name, name),
+                )
+            for name in BUSINESS_EXPENSE_CATEGORIES:
+                cur.execute(
+                    """
+                    INSERT INTO categories (user_id, name, type, is_default, is_business)
+                    SELECT NULL, %s, 'expense', TRUE, TRUE
+                    WHERE NOT EXISTS (
+                        SELECT 1 FROM categories
+                        WHERE user_id IS NULL AND name = %s AND type = 'expense'
                     )
                     """,
                     (name, name),

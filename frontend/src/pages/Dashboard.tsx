@@ -6,6 +6,7 @@ import RatesStatus from '../components/RatesStatus'
 import { Card, EmptyState, SectionHead, SoonBadge } from '../components/ui'
 import { fetchAccounts, type Account } from '../lib/accounts'
 import { fetchBudgets, statusColor, type Budget } from '../lib/budgets'
+import { fetchBusinessStatus, fetchProfit, type CurrencyProfit } from '../lib/business'
 import { fetchAlerts, type AlertItem } from '../lib/insights'
 import { fetchGoals, fetchSavings, statusColor as goalStatusColor, type Goal, type SavingsTarget } from '../lib/goals'
 import {
@@ -47,6 +48,8 @@ export default function Dashboard() {
   const [accounts, setAccounts] = useState<Account[] | null>(null)
   const [txns, setTxns] = useState<Transaction[] | null>(null)
   const [budgets, setBudgets] = useState<Budget[] | null>(null)
+  const [bizActive, setBizActive] = useState(false)
+  const [bizProfit, setBizProfit] = useState<CurrencyProfit[] | null>(null)
   const [alerts, setAlerts] = useState<AlertItem[] | null>(null)
   const [goalItems, setGoalItems] = useState<Array<SavingsTarget | Goal> | null>(null)
   const [filter, setFilter] = useState<string>('NGN')
@@ -65,6 +68,12 @@ export default function Dashboard() {
     fetchAccounts().then(setAccounts).catch(() => setAccounts([]))
     fetchTransactions().then(setTxns).catch(() => setTxns([]))
     fetchBudgets().then(setBudgets).catch(() => setBudgets([]))
+    fetchBusinessStatus()
+      .then((on) => {
+        setBizActive(on)
+        if (on) fetchProfit().then((s) => setBizProfit(s.per_currency)).catch(() => setBizProfit([]))
+      })
+      .catch(() => setBizActive(false))
     fetchAlerts().then(setAlerts).catch(() => setAlerts([]))
     Promise.all([fetchSavings(), fetchGoals()])
       .then(([s, g]) => setGoalItems([...s, ...g]))
@@ -354,6 +363,30 @@ export default function Dashboard() {
       <Card>
         <RatesStatus />
       </Card>
+      {bizActive && (
+        <>
+          <SectionHead title="Business" action={<a href="#/business">Open business</a>} />
+          <Card>
+            {bizProfit === null ? (
+              <p className="mt-stat-sub">Loading…</p>
+            ) : bizProfit.length === 0 ? (
+              <p className="mt-stat-sub">No business activity yet.</p>
+            ) : (
+              <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+                {bizProfit.map((row) => (
+                  <li key={row.currency} style={{ padding: '0.6rem 0', borderTop: '1px solid var(--mt-border)' }}>
+                    <strong>{row.currency} profit: {displayBalance(formatOriginal(row.profit, row.currency), showBalance)}</strong>
+                    <div className="mt-stat-sub">
+                      Sales {formatOriginal(row.sales, row.currency)} · Expenses{' '}
+                      {formatOriginal(row.expenses, row.currency)}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card>
+        </>
+      )}
       <SectionHead title="Alerts" action={<a href="#/insights">View all</a>} />
       <Card>
         {alerts === null ? (

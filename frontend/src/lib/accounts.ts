@@ -53,8 +53,9 @@ async function readError(res: Response): Promise<string> {
   }
 }
 
-export async function fetchAccounts(): Promise<Account[]> {
-  const res = await apiFetch('/accounts')
+export async function fetchAccounts(business = false): Promise<Account[]> {
+  const params = business ? '?business=true' : ''
+  const res = await apiFetch(`/accounts${params}`)
   if (!res.ok) throw new Error(await readError(res))
   return (await res.json()) as Account[]
 }

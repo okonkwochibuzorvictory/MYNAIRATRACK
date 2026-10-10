@@ -1,11 +1,11 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import AppShell from '../components/AppShell'
+import AccountForm from '../components/AccountForm'
 import BalanceToggle from '../components/BalanceToggle'
 import { Card, EmptyState, SectionHead } from '../components/ui'
 import { formatOriginal } from '../lib/currency'
 import { DEFAULT_BALANCE_VISIBLE, displayBalance } from '../lib/privacy'
 import {
-  ACCOUNT_TYPES,
   EMPTY_ACCOUNT_FORM,
   createAccount,
   deleteAccount,
@@ -13,7 +13,7 @@ import {
   updateAccount,
   validateAccountForm,
   type Account,
-  type AccountForm,
+  type AccountForm as AccountFormData,
 } from '../lib/accounts'
 
 export default function Accounts() {
@@ -22,7 +22,7 @@ export default function Accounts() {
   const [showBalances, setShowBalances] = useState<boolean>(DEFAULT_BALANCE_VISIBLE)
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState<Account | null>(null)
-  const [form, setForm] = useState<AccountForm>({ ...EMPTY_ACCOUNT_FORM })
+  const [form, setForm] = useState<AccountFormData>({ ...EMPTY_ACCOUNT_FORM })
   const [formErrors, setFormErrors] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState(false)
 
@@ -179,96 +179,16 @@ export default function Accounts() {
       {showForm && (
         <Card>
           <h2 style={{ marginTop: 0 }}>{editing ? 'Edit account' : 'Add account'}</h2>
-          <form onSubmit={onSubmit}>
-            <div className="mt-field">
-              <label htmlFor="acct-name">Account name</label>
-              <input
-                id="acct-name"
-                className="mt-input"
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-                required
-              />
-              {formErrors.name && <p className="mt-error">{formErrors.name}</p>}
-            </div>
-            <div className="mt-field">
-              <label htmlFor="acct-type">Account type</label>
-              <select
-                id="acct-type"
-                className="mt-select"
-                value={form.account_type}
-                onChange={(e) => setForm({ ...form, account_type: e.target.value })}
-              >
-                {ACCOUNT_TYPES.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </select>
-              {formErrors.account_type && <p className="mt-error">{formErrors.account_type}</p>}
-            </div>
-            <div className="mt-field">
-              <label htmlFor="acct-currency">Currency</label>
-              {editing ? (
-                <p className="mt-stat-sub">
-                  {form.currency} — currency cannot be changed after creation. Create another
-                  account for a different currency.
-                </p>
-              ) : (
-                <select
-                  id="acct-currency"
-                  className="mt-select"
-                  value={form.currency}
-                  onChange={(e) => setForm({ ...form, currency: e.target.value })}
-                >
-                  {['NGN', 'USD', 'EUR', 'GBP'].map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
-                </select>
-              )}
-              {formErrors.currency && <p className="mt-error">{formErrors.currency}</p>}
-            </div>
-            <div className="mt-field">
-              <label htmlFor="acct-balance">Opening balance</label>
-              <input
-                id="acct-balance"
-                className="mt-input"
-                type="number"
-                min="0"
-                step="0.01"
-                value={form.opening_balance}
-                onChange={(e) => setForm({ ...form, opening_balance: e.target.value })}
-              />
-              {formErrors.opening_balance && (
-                <p className="mt-error">{formErrors.opening_balance}</p>
-              )}
-            </div>
-            <div className="mt-field">
-              <label>
-                <input
-                  type="checkbox"
-                  checked={form.is_business}
-                  onChange={(e) => setForm({ ...form, is_business: e.target.checked })}
-                />{' '}
-                Business account
-              </label>
-            </div>
-            <p style={{ display: 'flex', gap: '0.75rem' }}>
-              <button className="mt-btn" style={{ width: 'auto' }} type="submit" disabled={busy}>
-                {busy ? 'Saving…' : editing ? 'Save changes' : 'Create account'}
-              </button>
-              <button
-                className="mt-btn mt-btn-secondary"
-                style={{ width: 'auto' }}
-                type="button"
-                onClick={() => setShowForm(false)}
-              >
-                Cancel
-              </button>
-            </p>
-          </form>
+          <AccountForm
+            form={form}
+            setForm={setForm}
+            formErrors={formErrors}
+            editing={editing !== null}
+            busy={busy}
+            lockBusiness={false}
+            onSubmit={onSubmit}
+            onCancel={() => setShowForm(false)}
+          />
         </Card>
       )}
     </AppShell>

@@ -25,6 +25,7 @@ def summary(
     currency: str = Query(...),
     period_start: date_cls = Query(...),
     period_end: date_cls = Query(...),
+    scope: str = Query(default="personal"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict:
@@ -35,6 +36,19 @@ def summary(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Currency must be one of NGN, USD, EUR, GBP",
         )
+    if scope not in ("personal", "business"):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Scope must be personal or business",
+        )
+    if scope == "business":
+        fresh = db.get(User, current_user.id)
+        if fresh is None or not fresh.business_mode:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Business Mode is not activated",
+            )
+    business_only = scope == "business"
     if period_end < period_start:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -51,6 +65,7 @@ def summary(
             .filter(
                 Transaction.user_id == current_user.id,
                 Transaction.type == "expense",
+                Transaction.is_business.is_(business_only),
                 Transaction.currency == currency,
                 Transaction.date >= start,
                 Transaction.date <= end,
@@ -98,7 +113,12 @@ def summary(
         )
 
     budgets = (
-        db.query(Budget).filter(Budget.user_id == current_user.id).all()
+        db.query(Budget)
+        .filter(
+            Budget.user_id == current_user.id,
+            Budget.is_business.is_(business_only),
+        )
+        .all()
     )
     budget_usage = []
     for b in budgets:

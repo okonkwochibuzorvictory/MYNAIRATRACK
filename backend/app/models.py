@@ -45,6 +45,7 @@ class User(Base):
     primary_currency: Mapped[str] = mapped_column(
         ForeignKey("currencies.code"), nullable=False, default="NGN"
     )
+    business_mode: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -119,6 +120,7 @@ class Category(Base):
     name: Mapped[str] = mapped_column(String(128), nullable=False)
     type: Mapped[str] = mapped_column(String(16), nullable=False)
     is_default: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    is_business: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
     __table_args__ = (
         CheckConstraint("type IN ('income', 'expense')", name="ck_category_type"),
@@ -173,6 +175,7 @@ class Budget(Base):
     )
     period_start = mapped_column(Date, nullable=False)
     period_end = mapped_column(Date, nullable=False)
+    is_business: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

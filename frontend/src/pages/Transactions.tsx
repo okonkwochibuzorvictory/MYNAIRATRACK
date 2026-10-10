@@ -211,6 +211,7 @@ export default function Transactions() {
               categories={categories}
               initial={editing}
               defaultCurrency={primary}
+              business={false}
               busy={busy}
               serverError={formError}
               onSubmit={handleSubmit}

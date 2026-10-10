@@ -19,6 +19,7 @@ from .routers import accounts as accounts_router
 from .routers import alerts as alerts_router
 from .routers import auth as auth_router
 from .routers import budgets as budgets_router
+from .routers import business as business_router
 from .routers import categories as categories_router
 from .routers import currencies as currencies_router
 from .routers import exchange_rates as exchange_rates_router
@@ -51,6 +52,7 @@ app.include_router(accounts_router.router)
 app.include_router(transactions_router.router)
 app.include_router(categories_router.router)
 app.include_router(budgets_router.router)
+app.include_router(business_router.router)
 app.include_router(savings_goals_router.savings_router)
 app.include_router(savings_goals_router.goals_router)
 app.include_router(insights_router.router)

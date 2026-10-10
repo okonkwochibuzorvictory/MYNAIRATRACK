@@ -2,6 +2,7 @@ import RequireAuth from './auth/RequireAuth'
 import { useHashRoute } from './auth/guard'
 import Accounts from './pages/Accounts'
 import Budgets from './pages/Budgets'
+import Business from './pages/Business'
 import Categories from './pages/Categories'
 import Dashboard from './pages/Dashboard'
 import Goals from './pages/Goals'
@@ -14,7 +15,7 @@ import Setup from './pages/Setup'
 import Signup from './pages/Signup'
 import Transactions from './pages/Transactions'
 
-const PLACEHOLDERS = new Set(['#/business'])
+const PLACEHOLDERS = new Set<string>([])
 
 export default function App() {
   const hash = useHashRoute()
@@ -74,6 +75,12 @@ export default function App() {
     return (
       <RequireAuth>
         <Insights />
+      </RequireAuth>
+    )
+  if (route === '#/business')
+    return (
+      <RequireAuth>
+        <Business />
       </RequireAuth>
     )
   if (PLACEHOLDERS.has(route))
