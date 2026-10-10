@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import AlertPrefs from './AlertPrefs'
 import { Card } from './ui'
-import { statusColor, type AllocationDraft, type Budget } from '../lib/budgets'
+import { statusColor, hasPeriodEnded, type AllocationDraft, type Budget } from '../lib/budgets'
 import type { Category } from '../lib/categories'
 import { formatOriginal } from '../lib/currency'
 import { displayBalance } from '../lib/privacy'
@@ -59,6 +59,11 @@ export default function BudgetDetails({
         {displayBalance(`${formatOriginal(budget.remaining, budget.currency)} left`, showAmounts)}
       </p>
       <Progress pct={budget.percent_used} status={budget.status} />
+      {hasPeriodEnded(budget.period_end) && (
+        <span className="mt-status" style={{ marginLeft: '0.5rem' }}>
+          Ended — no new spending can fall in this period
+        </span>
+      )}
       <h3 style={{ marginBottom: '0.25rem' }}>Category breakdown</h3>
       {(budget.allocations ?? []).length === 0 ? (
         <p className="mt-stat-sub">No allocations yet — the whole budget is unassigned.</p>

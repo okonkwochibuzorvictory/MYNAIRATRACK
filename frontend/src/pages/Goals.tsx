@@ -12,6 +12,8 @@ import {
   fetchGoals,
   fetchSavings,
   statusColor,
+  suggestContribution,
+  type ContributionFrequency,
   updateGoal,
   updateSavings,
   validateGoalForm,
@@ -223,6 +225,7 @@ export default function Goals() {
               remaining={g.remaining}
               pct={g.percent_complete}
               status={g.status}
+              deadline={g.deadline}
               sub={[
                 g.deadline ? `Target date: ${g.deadline}` : undefined,
                 Number(g.exceeded_by) > 0 ? `Exceeded by ${formatOriginal(g.exceeded_by, g.currency)}` : undefined,
@@ -354,6 +357,7 @@ function GoalCard({
   remaining,
   pct,
   status,
+  deadline,
   sub,
   showAmounts,
   onEdit,
@@ -366,12 +370,15 @@ function GoalCard({
   remaining: string
   pct: number
   status: string
+  deadline?: string | null
   sub?: string
   showAmounts: boolean
   onEdit: () => void
   onDelete: () => void
 }) {
   const width = Math.max(0, Math.min(100, pct))
+  const [frequency, setFrequency] = useState<ContributionFrequency>('monthly')
+  const suggestion = deadline === undefined ? null : suggestContribution(target, current, deadline, frequency)
   return (
     <Card>
       <p className="mt-card-label">{currency}</p>
@@ -383,6 +390,29 @@ function GoalCard({
         of {formatOriginal(target, currency)} · {formatOriginal(remaining, currency)} left
         {sub ? ` · ${sub}` : ''}
       </p>
+      {suggestion && (
+        <p className="mt-stat-sub">
+          Suggested:{' '}
+          {suggestion.kind === 'periodic' && suggestion.amount !== null
+            ? `${formatOriginal(suggestion.amount, currency)} per ${suggestion.frequency === 'daily' ? 'day' : suggestion.frequency === 'weekly' ? 'week' : 'month'}`
+            : suggestion.kind === 'completed'
+              ? 'goal reached — no contribution needed'
+              : 'add a target date to see a suggestion'}
+          {suggestion.kind === 'periodic' && (
+            <select
+              className="mt-select"
+              style={{ width: 'auto', display: 'inline-block', marginLeft: '0.5rem' }}
+              aria-label="Contribution frequency"
+              value={frequency}
+              onChange={(e) => setFrequency(e.target.value as ContributionFrequency)}
+            >
+              <option value="monthly">Monthly</option>
+              <option value="weekly">Weekly</option>
+              <option value="daily">Daily</option>
+            </select>
+          )}
+        </p>
+      )}
       <div className="mt-progress" role="progressbar" aria-valuenow={Math.round(pct)} aria-valuemin={0} aria-valuemax={100}>
         <span style={{ width: `${width}%`, background: statusColor(status) }} />
       </div>

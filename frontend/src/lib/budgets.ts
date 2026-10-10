@@ -95,6 +95,12 @@ export function statusColor(status: string): string {
   return 'var(--mt-success)'
 }
 
+export function hasPeriodEnded(period_end: string, today: Date = new Date()): boolean {
+  const end = new Date(`${period_end}T00:00:00`)
+  const start = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+  return start.getTime() > end.getTime()
+}
+
 async function readError(res: Response): Promise<string> {
   try {
     const data = await res.json()

@@ -58,6 +58,47 @@ export function statusColor(status: string): string {
   return 'var(--mt-warning)'
 }
 
+export interface ContributionSuggestion {
+  kind: 'periodic' | 'completed' | 'no-deadline'
+  amount: string | null
+  frequency: ContributionFrequency
+  periods: number
+}
+
+export type ContributionFrequency = 'monthly' | 'weekly' | 'daily'
+
+export function suggestMonthlyContribution(
+  target_amount: string,
+  current_amount: string,
+  deadline: string | null,
+  today: Date = new Date(),
+): ContributionSuggestion {
+  return suggestContribution(target_amount, current_amount, deadline, 'monthly', today)
+}
+
+export function suggestContribution(
+  target_amount: string,
+  current_amount: string,
+  deadline: string | null,
+  frequency: ContributionFrequency,
+  today: Date = new Date(),
+): ContributionSuggestion {
+  const target = Number(target_amount)
+  const current = Number(current_amount)
+  if (!Number.isFinite(target) || !Number.isFinite(current) || current >= target) {
+    return { kind: 'completed', amount: null, frequency, periods: 0 }
+  }
+  if (!deadline) {
+    return { kind: 'no-deadline', amount: null, frequency, periods: 0 }
+  }
+  const end = new Date(`${deadline}T00:00:00`)
+  const start = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+  const daysLeft = Math.ceil((end.getTime() - start.getTime()) / 86400000)
+  const divisor = frequency === 'daily' ? 1 : frequency === 'weekly' ? 7 : 30
+  const periods = Math.max(1, Math.ceil(daysLeft / divisor))
+  return { kind: 'periodic', amount: ((target - current) / periods).toFixed(2), frequency, periods }
+}
+
 async function readError(res: Response): Promise<string> {
   try {
     const data = await res.json()

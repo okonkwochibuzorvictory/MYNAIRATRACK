@@ -2,7 +2,7 @@
 
 > Source of truth: `MYNAIRATRACK 001-PRODUCT REQUIREMENTS DOCUMENT.docx` (finalized).
 > This plan is strictly derived from the PRD. No product features beyond the PRD are included.
-> No application code has been written. This document is the build blueprint, to be executed one phase at a time after approval.
+> Status: Phases 1–12 complete (see TEST_CHECKLIST.md); Phase 13 (final review) pending.
 
 ---
 
@@ -24,7 +24,7 @@
 | Payment platform | None | No | N/A | PRD has no payments |
 | Real-time/WebSocket | None | No | N/A | No PRD requirement |
 | External auth providers | None | No | N/A | Local auth is sufficient |
-| Live FX APIs | None (explicitly excluded) | No | N/A | PRD excludes live/automatic rates from MVP |
+| Live FX APIs | Free-tier cached provider only (open.er-api.com, no key) | Yes (cached) | Yes | No live streaming or trading; rates cached in PostgreSQL with labels; see §6 and Phase 13 notes |
 | Redis / cache | None | No | N/A | Unnecessary complexity for local MVP |
 | Cloud hosting | None during initial development (local only) | No | N/A | PRD: run locally for now |
 
@@ -71,7 +71,7 @@ Keep setup as simple as reasonably possible. Docker is optional, not mandatory.
 
 **PostgreSQL (local):**
 - Install PostgreSQL locally (or optionally `docker compose up db` if Docker is available).
-- Create database `mynairatrack` and a dev user. Run migrations (Phase 2) to create tables and seed currencies/categories.
+- Create database `mynairatrack` and a dev user. Run migrations (001–005) to create tables and seed currencies/categories.
 - Backend connects via `DATABASE_URL` using a standard Postgres driver (psycopg). No connection pooling service needed for local MVP.
 
 **How pieces communicate:**
@@ -84,17 +84,18 @@ Keep setup as simple as reasonably possible. Docker is optional, not mandatory.
 
 Only tables needed by the PRD. No extra tables for complexity.
 
-- `users` — id, name, email (unique), password_hash (Argon2), primary_currency (default NGN), timestamps.
+- `users` — id, name, email (unique), password_hash (Argon2), primary_currency (default NGN), business_mode (bool, default OFF), timestamps.
 - `currencies` — code (NGN/USD/EUR/GBP), name, symbol. Seed table, read-only in normal use.
 - `exchange_rates` — from_currency, to_currency, rate, provider/source, fetched_at. Populated by FastAPI from the external FX provider and cached in PostgreSQL. Used ONLY for consolidated reporting. If the provider is unavailable, use the most recent valid cached rate and label it as cached with its timestamp. If no valid rate exists, show "conversion unavailable," never an invented rate.
-- `accounts` — id, user_id, name, currency, is_business (bool), timestamps. One currency per account (MVP).
-- `categories` — id, user_id (nullable for defaults), name, type (income/expense), is_default. Defaults seeded from PRD; users can add custom.
-- `transactions` — id, user_id, account_id, type (income/expense/sale), amount (numeric, never negative logic errors), currency (original, immutable), category_id, date, payment_method, note, is_business. Original amount+currency never updated by conversion or primary-currency change.
-- `budgets` — id, user_id, name, amount, currency (own currency, defaults to primary at creation), period_start, period_end, timestamps.
+- `accounts` — id, user_id, name, currency, account_type, opening_balance (non-negative), is_business (bool), timestamps. One currency per account (MVP).
+- `categories` — id, user_id (nullable for defaults), name, type (income/expense), is_default, is_business (personal vs business scope). Defaults seeded from PRD (personal + business sets); users can add custom.
+- `transactions` — id, user_id, account_id, type (income/expense/sale), amount (numeric, never negative logic errors), currency (original, preserved; changeable only via explicit user edit, never silently), category_id, date, payment_method, note, is_business (defaults from account; explicit override allowed for personal-funded business records). Original amount+currency never updated by conversion or primary-currency change.
+- `budgets` — id, user_id, name, amount, currency (own currency, defaults to primary at creation), period_start, period_end, is_business, timestamps.
 - `budget_allocations` — id, budget_id, category_id, allocated_amount (in budget currency). Used by flexible + guided budgeting.
 - `savings_targets` — id, user_id, name, target_amount, current_amount, currency (own currency; no account required), timestamps.
 - `goals` — id, user_id, name, target_amount, current_amount, currency (own currency; no account required), deadline, suggested_contribution, timestamps.
-- `alerts` — id, user_id, budget_id (nullable), type (threshold_50/80/100/over/insight), message, is_read, created_at. In-app only.
+- `alerts` — id, user_id, budget_id (nullable), type (threshold_50/80/100/over/insight), message, is_read, period_start/period_end (dedup key for threshold alerts), created_at. In-app only.
+- `alert_preferences` — id, user_id, budget_id (nullable; NULL = master record), alert_50/80/100/over flags, alerts_enabled master switch, timestamps. Partial unique indexes enforce one master + one per-budget row per user.
 
 Income vs expenses are rows in `transactions` distinguished by `type` (PRD treats income sources and expense categories separately in UI but they share the transaction concept; separate tables would add complexity without product benefit). Business sales are `transactions` with `type=sale` + `is_business=true` linked to a business account.
 
@@ -171,7 +172,7 @@ Income vs expenses are rows in `transactions` distinguished by `type` (PRD treat
 ### Phase 5 — Accounts/wallets
 
 - **Objective:** Accounts/wallets with exactly one currency each (personal or business flag).
-- **What will be built:** Account list/create/edit; each account has name + currency + personal/business flag; per-account balance in its own currency.
+- **What will be built:** Account list/create/edit; each account has name + currency + type + opening balance + personal/business flag; per-account balance in its own currency.
 - **Main user-facing functionality:** User creates e.g. Main Bank (NGN), Dollar Account (USD); sees balances per account in native currency.
 - **Backend/database work:** `accounts` CRUD scoped to user; currency is immutable after creation (final decision: protects historical records; user creates another account for a different currency); balance computed from transactions in same currency only.
 - **Files/modules expected:** `frontend/src/pages/Accounts.tsx`; `backend/app/routers/accounts.py`.
@@ -185,7 +186,7 @@ Income vs expenses are rows in `transactions` distinguished by `type` (PRD treat
 - **Objective:** Fast, correct recording of income (multiple sources) and expenses with original currency preserved.
 - **What will be built:** Quick entry (amount + category); detailed entry (amount, currency selectable from supported list when necessary, category, date, payment method, note, account); transaction history always showing original currency/amount; currency filter on history.
 - **Main user-facing functionality:** User records Salary +₦500,000 NGN, Freelance +$500 USD, Software −$20 USD, Food −₦30,000 NGN; history shows each in its original currency.
-- **Backend/database work:** `transactions` CRUD; currency + amount immutable once created (no edit path that rewrites currency in MVP — new transaction + delete instead, documented); account must belong to user; category must belong to user or be default.
+- **Backend/database work:** `transactions` CRUD; transaction currency/amount changeable only via explicit user edit (never silently); account must belong to user; category must belong to user or be default.
 - **Files/modules expected:** `frontend/src/pages/Transactions.tsx`, `frontend/src/components/TransactionForm.tsx`; `backend/app/routers/transactions.py`.
 - **Dependencies:** Phases 4, 5 (accounts), 7 may parallel-track categories but Phase 6 needs at least seeded defaults.
 - **Verification criteria:** All four example transactions save with original currency; editing amount never changes another record; history filter by currency works.
@@ -210,7 +211,7 @@ Income vs expenses are rows in `transactions` distinguished by `type` (PRD treat
 - **What will be built:** Budget create (any amount, start date + end date period — final decision, any of the 4 currencies; defaults to primary, changeable); category allocations; guided-budget suggestions in the budget's currency; monitoring view (budgeted vs spent vs remaining, in budget currency).
 - **Main user-facing functionality:** User creates ₦100,000 / 14-day budget with allocations; creates a guided budget in USD; watches spent/remaining update as same-currency expenses are recorded.
 - **Backend/database work:** `budgets` + `budget_allocations`; spend computation counts ONLY expenses where `expense.currency == budget.currency`; cross-currency expenses ignored (no conversion) per PRD.
-- **Files/modules expected:** `frontend/src/pages/Budgets.tsx`, `frontend/src/components/GuidedBudget.tsx`; `backend/app/routers/budgets.py`, `backend/app/budgeting.py`.
+- **Files/modules expected:** `frontend/src/pages/Budgets.tsx`, `frontend/src/components/BudgetForm.tsx`, `BudgetDetails.tsx`; `backend/app/routers/budgets.py`.
 - **Dependencies:** Phases 4, 6, 7.
 - **Verification criteria:** NGN expense updates NGN budget, leaves USD budget untouched; USD expense updates USD budget only.
 - **Tests:** pytest: same-currency matching rule (core regression test); guided allocations sum to budget; period handling. Vitest: budget creation with currency picker; monitoring display.
@@ -222,7 +223,7 @@ Income vs expenses are rows in `transactions` distinguished by `type` (PRD treat
 - **What will be built:** Savings tracker (saved, progress, history, remaining in savings currency); goals (name, target, current, deadline, suggested contribution in goal currency).
 - **Main user-facing functionality:** User creates a $2,000 USD goal with no USD account — allowed; tracks progress in USD.
 - **Backend/database work:** `savings_targets`, `goals` CRUD; currency required; no account-link requirement enforced (absence of requirement is the rule).
-- **Files/modules expected:** `frontend/src/pages/{Savings,Goals}.tsx`; `backend/app/routers/{savings,goals}.py`.
+- **Files/modules expected:** `frontend/src/pages/{Savings,Goals}.tsx` (implemented as one Goals page with both sections); `backend/app/routers/savings_goals.py`.
 - **Dependencies:** Phase 4 (Phase 6 history optional for progress entries).
 - **Verification criteria:** Goal in a currency with no matching account saves and displays correctly.
 - **Tests:** pytest: goal without matching account allowed; progress math in goal currency. Vitest: goal creation flow.
@@ -246,23 +247,24 @@ Income vs expenses are rows in `transactions` distinguished by `type` (PRD treat
 - **What will be built:** Insights panel (totals by category, % of budget used, current vs immediately-preceding equal-length period — computed within same currency, zero previous spending shown as a message never a percentage); per-budget alert preferences (50% off by default, 80%/100%/over-budget on by default, master off switch); in-app alert list + dashboard badge (final decision). MVP alerts are budget-threshold only; no standalone spending-increase alerts.
 - **Main user-facing functionality:** User keeps the 80% default and receives an in-app alert at 80% of that budget's currency; can change thresholds or turn alerts off entirely.
 - **Backend/database work:** Insight computation (same-currency grouping); `alert_preferences` table via small additive migration (per-budget thresholds + master switch); alert evaluation on transaction create/edit/delete with dedup per budget + threshold + budget period; `alerts` table reads. Alerting never moves money or edits balances.
-- **Files/modules expected:** `frontend/src/pages/Insights.tsx`, `frontend/src/components/Alerts.tsx`; `backend/app/routers/{insights,alerts}.py`, `backend/app/alerting.py`; `backend/migrations/003_alert_preferences.sql`.
+- **Files/modules expected:** `frontend/src/pages/Insights.tsx`, `frontend/src/components/AlertPrefs.tsx`; `backend/app/routers/{insights,alerts,preferences}.py`, `backend/app/alerting.py`; `backend/migrations/003_alert_preferences.sql`.
 - **Dependencies:** Phases 6, 8.
 - **Verification criteria:** Alerts fire at correct thresholds in budget currency; off means silent; insights never mix currencies in one percentage; repeated evaluations do not duplicate alerts; edits/deletes recalculate correctly.
 - **Tests:** pytest: threshold firing (50/80/100/over), off-state silence, same-currency grouping. Vitest: preferences UI + alert list.
 - **Gate:** Insights/alerts correct and currency-safe.
 
-### Phase 11 — Business Mode
+### Phase 11 — Business Mode ✅ COMPLETE
 
-- **Objective:** Business tracking inside the same product and dashboard shell. No separate product, no separate dashboard.
-- **What will be built:** Business Mode toggle; business accounts with own currencies; business sales/income + expenses + profit views preserving transaction currency; personal vs business separation.
-- **Main user-facing functionality:** User activates Business Mode → records USD sale and USD expense → sees USD profit; personal accounts unaffected.
-- **Backend/database work:** `is_business` flag enforcement; profit = sales − expenses within same currency only (no cross-currency profit conversion in MVP).
-- **Files/modules expected:** `frontend/src/pages/Business.tsx`; reuse of account/transaction routers with business scoping.
+- **Status:** COMPLETE (verified: backend 145 passed, frontend 64+ passed, live verified).
+- **Objective (preserved):** Business tracking inside the same product and dashboard shell. No separate product, no separate login.
+- **What was built:** Opt-in activation flag (`users.business_mode`, default OFF); dedicated Business workspace with its own navigation (Dashboard, Accounts, Transactions, Budgets, Insights) plus persistent indicator and Back to Personal Finance; business accounts with own currencies (created/managed in-workspace); sales (`type=sale`, business accounts only, income categories) + business income/expenses + per-currency AND per-account profit views preserving transaction currency; business budgets (full CRUD via shared form, monitored against business expenses only); business-scoped categories (seeded business defaults + scope flag; business forms show business categories only); personal-funded business records via explicit override (account stays personal, counted once); strict personal/business separation enforced in backend queries (personal reads default personal; business reads require active mode).
+- **Main user-facing functionality (preserved):** User activates Business Mode → records USD sale and USD expense → sees USD profit; personal accounts unaffected.
+- **Backend/database work (preserved):** `is_business` flag enforcement (+ `users.business_mode`, `budgets.is_business`, `categories.is_business` via migrations 004/005); profit = sales + income − expenses within same currency only (no cross-currency profit conversion in MVP).
+- **Files/modules (as built):** `frontend/src/pages/Business.tsx`, `components/{AccountForm,BudgetForm,BudgetDetails}.tsx` (shared); `backend/app/routers/business.py`; reuse of account/transaction/budget routers with business scoping.
 - **Dependencies:** Phases 5, 6.
-- **Verification criteria:** Business and personal records never mix; profit shown per currency; mixed-currency business activity shows per-currency profits, not one merged number.
-- **Tests:** pytest: personal/business isolation; same-currency profit math; mixed-currency separation. Vitest: Business Mode activation flow.
-- **Gate:** Business Mode works multi-currency without forking the product.
+- **Verification criteria (met):** Business and personal records never mix; profit shown per currency and per account; mixed-currency business activity shows per-currency profits, not one merged number.
+- **Tests:** pytest: personal/business isolation; same-currency profit math; mixed-currency separation; funding override without double-count. Vitest: Business Mode activation flow, workspace rendering, category scoping.
+- **Gate (met):** Business Mode works multi-currency without forking the product.
 
 ### Phase 12 — Testing and validation
 
@@ -303,7 +305,7 @@ Income vs expenses are rows in `transactions` distinguished by `type` (PRD treat
 - Business Mode in same product/shell; business accounts with own currency; same-currency profit.
 
 **OUT (PRD-deferred, do not build):**
-- Extra currencies, cross-currency budget conversion, merged multi-currency totals without conversion, separate business product/dashboard, email/push notifications, payments, file storage, real-time, Redis, cloud hosting, external auth. Manual user rate-editing is not a normal feature (administrative/future only).
+- Extra currencies, cross-currency budget conversion, merged multi-currency totals without conversion, separate business application/login, email/push notifications, payments, file storage, real-time, Redis, cloud hosting, external auth. Manual user rate-editing is not a normal feature (administrative/future only).
 
 ---
 
@@ -315,6 +317,16 @@ Income vs expenses are rows in `transactions` distinguished by `type` (PRD treat
 - **Alert surfacing:** In-app alert list + dashboard badge (final).
 - **JWT storage:** Secure httpOnly cookie with appropriate Secure/SameSite/CORS/expiry handling (final).
 - **Account currency:** Immutable after creation (final); create another account for a different currency.
+- **Transaction currency/amount:** Changeable only via explicit user edit, never silently (final).
+- **Budget currency:** Cannot change once the budget has spending (final).
+- **Goal/target currency:** Cannot change once there is progress (final).
+- **Category type:** Immutable after creation (final).
+- **Account deletion:** Blocked while transactions reference the account (final; 409, history preserved).
+- **Category deletion:** Blocked while transactions reference the category; defaults never deletable (final).
+- **Alert dedup:** One alert per budget + threshold + budget period; history immutable (final).
+- **Balance privacy:** Balances hidden by default with eye toggle (final).
+- **Greeting periods:** Morning 12:00 AM–11:59 AM, afternoon 12:00 PM–4:59 PM, evening 5:00 PM–11:59 PM; auto-updates without refresh (final).
+- **Business separation:** Personal reads default personal; business reads require active mode; sales on business accounts only (final).
 
 ## 8. Risks
 

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   EMPTY_BUDGET_FORM,
   allocationTotals,
+  hasPeriodEnded,
   statusColor,
   validateBudgetForm,
 } from './budgets'
@@ -69,5 +70,13 @@ describe('budget status colors', () => {
     expect(statusColor('On Track')).toContain('success')
     expect(statusColor('Near Limit')).toContain('warning')
     expect(statusColor('Over Budget')).toContain('error')
+  })
+})
+
+describe('budget period end', () => {
+  it('detects ended periods', () => {
+    expect(hasPeriodEnded('2026-09-30', new Date(2026, 9, 10))).toBe(true)
+    expect(hasPeriodEnded('2026-10-31', new Date(2026, 9, 10))).toBe(false)
+    expect(hasPeriodEnded('2026-10-10', new Date(2026, 9, 10))).toBe(false)
   })
 })

@@ -12,6 +12,7 @@ import {
   deleteBudget,
   fetchBudget,
   fetchBudgets,
+  hasPeriodEnded,
   removeAllocation,
   updateBudget,
   validateBudgetForm,
@@ -201,6 +202,11 @@ export default function Budgets() {
                 {displayBalance(`${formatOriginal(b.remaining, b.currency)} left`, showAmounts)}
               </p>
               <Progress pct={b.percent_used} status={b.status} />
+              {hasPeriodEnded(b.period_end) && (
+                <span className="mt-status" style={{ marginLeft: '0.5rem' }}>
+                  Ended
+                </span>
+              )}
               <p style={{ display: 'flex', gap: '0.75rem', marginTop: '0.75rem' }}>
                 <button
                   type="button"
