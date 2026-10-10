@@ -15,7 +15,7 @@ they go on Render (free tier available). Total: ~10 minutes of clicking.
    - `RESEND_API_KEY`: paste your Resend key (same one working locally).
    - `FX_API_KEY`: leave blank (free provider needs none).
 4. Click **Apply**. Render installs, runs migrations + seed
-   (`preDeployCommand`), and starts the API.
+   automatically at startup, and starts the API.
 5. Open `https://<your-api>.onrender.com/health` — expect `{"status":"ok"}`.
    Copy the API URL; you need it below.
 

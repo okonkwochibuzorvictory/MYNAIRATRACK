@@ -6,7 +6,7 @@
 [build]
   base = "frontend/"
   command = "npm run build"
-  publish = "frontend/dist/"
+  publish = "dist/"
 
 # Hash-routed SPA (#/...) still needs a fallback for direct visits.
 [[redirects]]
