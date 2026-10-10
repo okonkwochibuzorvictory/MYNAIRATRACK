@@ -1,0 +1,20 @@
+# Netlify hosts the MYNAIRATRACK frontend (Vite SPA) only.
+# The FastAPI backend + PostgreSQL must be deployed separately
+# (see DEPLOY.md — e.g. Render). Set VITE_API_URL in the Netlify
+# site settings to the public backend URL before deploying.
+
+[build]
+  base = "frontend/"
+  command = "npm run build"
+  publish = "frontend/dist/"
+
+# Hash-routed SPA (#/...) still needs a fallback for direct visits.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"

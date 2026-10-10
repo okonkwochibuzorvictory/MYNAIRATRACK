@@ -1,0 +1,45 @@
+# Render blueprint: FastAPI backend + PostgreSQL for MYNAIRATRACK.
+# The frontend is deployed separately on Netlify (see netlify.toml).
+# Create from this repo in the Render dashboard (Blueprints) and set the
+# environment variables listed below. Secrets are generated, never committed.
+
+databases:
+  - name: mynairatrack-db
+    plan: free
+
+services:
+  - type: web
+    name: mynairatrack-api
+    runtime: python
+    plan: free
+    rootDir: backend
+    buildCommand: "pip install -r requirements.txt"
+    # Apply migrations + seed on every deploy, then serve.
+    preDeployCommand: "python -m app.migrate && python -m app.seed"
+    startCommand: "uvicorn app.main:app --host 0.0.0.0 --port $PORT"
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: mynairatrack-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRE_MINUTES
+        value: 60
+      - key: CORS_ORIGINS
+        sync: false # Set to your Netlify site URL, e.g. https://mynairatrack.netlify.app
+      - key: COOKIE_SECURE
+        value: true
+      - key: FRONTEND_URL
+        sync: false # Same Netlify site URL (used in verification/reset emails)
+      - key: FX_PROVIDER
+        value: open-er-api
+      - key: FX_BASE_URL
+        value: https://open.er-api.com/v6/latest
+      - key: FX_API_KEY
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false # Paste your Resend key in the dashboard
+      - key: RESEND_FROM
+        value: MYNAIRATRACK <onboarding@resend.dev>
