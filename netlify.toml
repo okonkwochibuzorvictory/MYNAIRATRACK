@@ -7,10 +7,6 @@
   base = "frontend/"
   command = "npm run build"
   publish = "dist/"
-  # VITE_API_URL is a public backend address (every visitor's browser calls
-  # it), not a secret — but Netlify flags any env value embedded in the
-  # bundle. Omit only this key; scanning stays on for everything else.
-  SECRETS_SCAN_OMIT_KEYS = "VITE_API_URL"
 
 # Hash-routed SPA (#/...) still needs a fallback for direct visits.
 [[redirects]]
