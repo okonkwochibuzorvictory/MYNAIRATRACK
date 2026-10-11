@@ -61,3 +61,112 @@ def test_invalid_recipient(monkeypatch):
         raise AssertionError("should have raised")
     except ValueError:
         pass
+
+
+def test_smtp_fallback_when_no_resend_key(monkeypatch):
+    monkeypatch.delenv("RESEND_API_KEY", raising=False)
+    monkeypatch.setenv("SMTP_USER", "me@gmail.com")
+    monkeypatch.setenv("SMTP_PASSWORD", "app-password")
+    sent = {}
+
+    class FakeSMTP:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def starttls(self):
+            pass
+
+        def login(self, user, password):
+            sent["login"] = (user, password)
+
+        def send_message(self, msg):
+            sent["to"] = msg["To"]
+            sent["subject"] = msg["Subject"]
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+    with patch("app.email.smtplib.SMTP", FakeSMTP):
+        assert send_email("a@example.com", "Hi", "<p>Hi</p>") == "smtp-sent"
+    assert sent["login"] == ("me@gmail.com", "app-password")
+    assert sent["to"] == "a@example.com"
+
+
+def test_smtp_strips_spaces_from_app_password(monkeypatch):
+    monkeypatch.delenv("RESEND_API_KEY", raising=False)
+    monkeypatch.setenv("SMTP_USER", "me@gmail.com")
+    monkeypatch.setenv("SMTP_PASSWORD", "abcd efgh ijkl mnop")
+    seen = {}
+
+    class FakeSMTP:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def starttls(self):
+            pass
+
+        def login(self, user, password):
+            seen["password"] = password
+
+        def send_message(self, msg):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+    with patch("app.email.smtplib.SMTP", FakeSMTP):
+        send_email("a@example.com", "Hi", "<p>Hi</p>")
+    assert seen["password"] == "abcdefghijklmnop"
+
+
+def test_smtp_unicode_body(monkeypatch):
+    monkeypatch.delenv("RESEND_API_KEY", raising=False)
+    monkeypatch.setenv("SMTP_USER", "me@gmail.com")
+    monkeypatch.setenv("SMTP_PASSWORD", "x")
+    bodies = {}
+
+    class FakeSMTP:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def starttls(self):
+            pass
+
+        def login(self, user, password):
+            pass
+
+        def send_message(self, msg):
+            bodies["payload"] = msg.as_string()
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+    with patch("app.email.smtplib.SMTP", FakeSMTP):
+        assert send_email("a@example.com", "Hi ₦", "<p>Hi Chibuzor 👋</p>") == "smtp-sent"
+    assert bodies["payload"]
+
+
+def test_smtp_failure(monkeypatch):
+    monkeypatch.delenv("RESEND_API_KEY", raising=False)
+    monkeypatch.setenv("SMTP_USER", "me@gmail.com")
+    monkeypatch.setenv("SMTP_PASSWORD", "app-password")
+
+    class BadSMTP:
+        def __init__(self, *args, **kwargs):
+            raise ConnectionError("down")
+
+    with patch("app.email.smtplib.SMTP", BadSMTP):
+        try:
+            send_email("a@example.com", "Hi", "<p>Hi</p>")
+            raise AssertionError("should have raised")
+        except EmailSendError:
+            pass
