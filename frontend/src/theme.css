@@ -677,6 +677,133 @@ select {
   color: var(--mt-muted);
 }
 
+/* ---------- PWA install ---------- */
+
+.mt-side-install {
+  margin-top: 0.75rem;
+}
+
+.mt-side-install .mt-install-wrap {
+  display: block;
+}
+
+.mt-install-wrap {
+  position: relative;
+  display: inline-block;
+}
+
+.mt-install-btn {
+  width: auto;
+  padding: 0.6rem 1.1rem;
+  font-size: 0.9rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.mt-side-install .mt-install-btn {
+  width: 100%;
+  justify-content: center;
+}
+
+.mt-install-outline {
+  background: transparent;
+  border: 1px solid #e9c46a;
+  color: #e9c46a;
+}
+
+.mt-install-outline:hover:not(:disabled) {
+  background: rgba(233, 196, 106, 0.14);
+}
+
+.mt-install-note {
+  position: absolute;
+  top: calc(100% + 0.4rem);
+  left: 0;
+  z-index: 20;
+  background: var(--mt-primary-deep);
+  color: #f5f1e6;
+  font-size: 0.82rem;
+  border-radius: 10px;
+  padding: 0.55rem 0.75rem;
+  box-shadow: var(--mt-shadow);
+  max-width: 16rem;
+}
+
+.mt-install-banner {
+  position: fixed;
+  left: 1rem;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: var(--mt-primary-deep);
+  color: #f5f1e6;
+  border: 1px solid rgba(233, 196, 106, 0.4);
+  border-radius: 16px;
+  padding: 0.7rem 0.9rem;
+  box-shadow: 0 8px 28px rgba(12, 53, 33, 0.35);
+  max-width: 34rem;
+  margin: 0 auto;
+}
+
+.mt-install-mark {
+  width: 2.4rem;
+  height: 2.4rem;
+  flex-shrink: 0;
+  border-radius: 0.8rem;
+  background: var(--mt-primary);
+  border: 1px solid #e9c46a;
+  color: #e9c46a;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 1.2rem;
+}
+
+.mt-install-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.mt-install-text strong {
+  font-size: 0.92rem;
+}
+
+.mt-install-text small {
+  font-size: 0.8rem;
+  color: #d6cfbc;
+}
+
+.mt-install-cta {
+  width: auto;
+  padding: 0.55rem 1.1rem;
+  font-size: 0.88rem;
+  flex-shrink: 0;
+}
+
+.mt-install-close {
+  background: transparent;
+  border: none;
+  color: #a8a094;
+  cursor: pointer;
+  font-size: 0.95rem;
+  padding: 0.35rem;
+  flex-shrink: 0;
+}
+
+.mt-install-close:hover {
+  color: #fff;
+}
+
 /* ---------- Responsive ---------- */
 
 @media (max-width: 900px) {

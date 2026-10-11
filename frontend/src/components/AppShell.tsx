@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { getMe, logout, type User } from '../auth/client'
 import CurrencySelector from '../components/CurrencySelector'
+import { InstallButton } from '../pwa/install'
 import { greetingChanged, greetingFor } from '../lib/greeting'
 import { fetchUnreadCount } from '../lib/insights'
 
@@ -87,6 +88,9 @@ export default function AppShell({ active, title, subtitle, filter, onFilterChan
             </a>
           ))}
         </nav>
+        <div className="mt-side-install">
+          <InstallButton variant="gold" />
+        </div>
         <div className="mt-side-foot">Know your money. Track your money. Plan your money.</div>
       </aside>
       <div className="mt-main">

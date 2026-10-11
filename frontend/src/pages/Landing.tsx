@@ -1,3 +1,5 @@
+import { InstallButton } from '../pwa/install'
+
 export default function Landing() {
   return (
     <div className="mt-auth-wrap">
@@ -29,6 +31,7 @@ export default function Landing() {
             >
               Log in
             </a>
+            <InstallButton variant="outline" />
           </div>
         </div>
         <div className="mt-hero-list">
