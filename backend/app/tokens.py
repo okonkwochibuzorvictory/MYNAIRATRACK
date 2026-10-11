@@ -58,11 +58,16 @@ def consume_token(db: Session, raw: str, purpose: str) -> AuthToken | None:
 
 
 def send_email_safe(to: str, subject: str, html: str) -> bool:
-    """Returns True if handed to the provider, False if skipped."""
+    """Returns True if handed to the provider, False if skipped/failed.
+
+    Failures are printed (no secrets) so Render logs show what happened.
+    """
     try:
         send_email(to, subject, html)
         return True
     except EmailNotConfigured:
+        print("email: skipped (no provider configured)")
         return False
-    except Exception:
+    except Exception as exc:
+        print(f"email: failed ({type(exc).__name__}: {exc})")
         return False
