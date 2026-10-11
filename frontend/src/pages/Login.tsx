@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { login } from '../auth/client'
+import { apiFetch, login } from '../auth/client'
 import PasswordInput from '../components/PasswordInput'
 
 export default function Login() {
@@ -7,6 +7,24 @@ export default function Login() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const [resent, setResent] = useState(false)
+  const [resending, setResending] = useState(false)
+
+  const needsVerification =
+    error === 'Please verify your email address before logging in'
+
+  async function resend() {
+    setResending(true)
+    try {
+      await apiFetch('/auth/resend-verification', {
+        method: 'POST',
+        body: JSON.stringify({ email }),
+      })
+      setResent(true)
+    } finally {
+      setResending(false)
+    }
+  }
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
@@ -55,6 +73,29 @@ export default function Login() {
             required
           />
           {error && <p className="mt-error">{error}</p>}
+          {needsVerification && (
+            <p className="mt-auth-sub">
+              {resent ? (
+                'Verification email re-sent — check your inbox and spam folder.'
+              ) : (
+                <button
+                  type="button"
+                  onClick={resend}
+                  disabled={resending}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    padding: 0,
+                    color: 'var(--mt-primary)',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                >
+                  {resending ? 'Sending…' : 'Re-send verification email'}
+                </button>
+              )}
+            </p>
+          )}
           <button className="mt-btn" type="submit" disabled={busy}>
             {busy ? 'Logging in…' : 'Log in'}
           </button>
