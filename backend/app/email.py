@@ -1,11 +1,13 @@
 """Transactional email (backend only).
 
-Two providers, tried in order:
-1. Resend (RESEND_API_KEY) — current live path.
-2. SMTP fallback (SMTP_USER + SMTP_PASS), e.g. a free Gmail App Password —
-   delivers to any address with no custom domain required.
+Providers tried in order:
+1. Resend (RESEND_API_KEY).
+2. Brevo (BREVO_API_KEY) — free tier, single-sender verification needs
+   no custom domain; delivers to any address.
+3. SMTP fallback (SMTP_USER + SMTP_PASS), e.g. a free Gmail App Password.
+   (Note: some hosts block outbound SMTP; prefer 1 or 2 there.)
 
-With neither configured, sending is disabled and the app works normally.
+With none configured, sending is disabled and the app works normally.
 Keys/passwords live in backend env only, never in frontend code.
 """
 
@@ -16,6 +18,7 @@ from email.mime.text import MIMEText
 import httpx
 
 RESEND_API_URL = "https://api.resend.com/emails"
+BREVO_API_URL = "https://api.brevo.com/v3/smtp/email"
 
 
 class EmailNotConfigured(Exception):
@@ -35,7 +38,15 @@ def sender() -> str:
 
 
 def is_configured() -> bool:
-    return bool(api_key()) or bool(smtp_user() and smtp_password())
+    return bool(api_key()) or bool(brevo_key()) or bool(smtp_user() and smtp_password())
+
+
+def brevo_key() -> str:
+    return os.getenv("BREVO_API_KEY", "")
+
+
+def brevo_sender() -> str:
+    return os.getenv("BREVO_SENDER", "") or smtp_user()
 
 
 def smtp_user() -> str:
@@ -61,6 +72,8 @@ def send_email(to: str, subject: str, html: str) -> str:
     key = api_key()
     if key:
         return _send_resend(key, to, subject, html)
+    if brevo_key():
+        return _send_brevo(to, subject, html)
     if smtp_user() and smtp_password():
         return _send_smtp(to, subject, html)
     raise EmailNotConfigured("No email provider is configured")
@@ -88,6 +101,7 @@ def _send_resend(key: str, to: str, subject: str, html: str) -> str:
 
 
 def _send_smtp(to: str, subject: str, html: str) -> str:
+    """Direct SMTP (Gmail App Password). Blocked on some free hosts."""
     host = os.getenv("SMTP_HOST", "smtp.gmail.com")
     try:
         port = int(os.getenv("SMTP_PORT", "587"))
@@ -110,3 +124,26 @@ def _send_smtp(to: str, subject: str, html: str) -> str:
     except Exception as exc:
         raise EmailSendError(f"SMTP delivery failed: {exc}") from exc
     return "smtp-sent"
+
+
+def _send_brevo(to: str, subject: str, html: str) -> str:
+    try:
+        resp = httpx.post(
+            BREVO_API_URL,
+            headers={"api-key": brevo_key(), "Content-Type": "application/json"},
+            json={
+                "sender": {"email": brevo_sender()},
+                "to": [{"email": to}],
+                "subject": subject,
+                "htmlContent": html,
+            },
+            timeout=10,
+        )
+    except Exception as exc:
+        raise EmailSendError(f"Email request failed: {exc}") from exc
+    if resp.status_code >= 400:
+        raise EmailSendError(f"Brevo rejected the request ({resp.status_code})")
+    try:
+        return str(resp.json().get("messageId", ""))
+    except Exception:
+        return ""

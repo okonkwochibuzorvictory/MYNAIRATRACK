@@ -170,3 +170,39 @@ def test_smtp_failure(monkeypatch):
             raise AssertionError("should have raised")
         except EmailSendError:
             pass
+
+
+def _brevo_env(monkeypatch):
+    monkeypatch.delenv("RESEND_API_KEY", raising=False)
+    monkeypatch.delenv("SMTP_USER", raising=False)
+    monkeypatch.delenv("SMTP_PASSWORD", raising=False)
+    monkeypatch.setenv("BREVO_API_KEY", "xkeysib-test")
+    monkeypatch.setenv("BREVO_SENDER", "me@gmail.com")
+
+
+def test_brevo_preferred_over_smtp(monkeypatch):
+    _brevo_env(monkeypatch)
+    monkeypatch.setenv("SMTP_USER", "me@gmail.com")
+    monkeypatch.setenv("SMTP_PASSWORD", "x")
+
+    class ExplodingSMTP:
+        def __init__(self, *args, **kwargs):
+            raise AssertionError("SMTP must not be used when Brevo is set")
+
+    with patch("app.email.smtplib.SMTP", ExplodingSMTP):
+        with patch.object(email_module.httpx, "post",
+                          return_value=FakeResponse(201, {"messageId": "brevo-1"})) as mocked:
+            assert send_email("a@example.com", "Hi", "<p>Hi</p>") == "brevo-1"
+    _, kwargs = mocked.call_args
+    assert kwargs["headers"]["api-key"] == "xkeysib-test"
+    assert kwargs["json"]["to"] == [{"email": "a@example.com"}]
+
+
+def test_brevo_rejection(monkeypatch):
+    _brevo_env(monkeypatch)
+    with patch.object(email_module.httpx, "post", return_value=FakeResponse(401, {})):
+        try:
+            send_email("a@example.com", "Hi", "<p>Hi</p>")
+            raise AssertionError("should have raised")
+        except EmailSendError:
+            pass

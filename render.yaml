@@ -43,3 +43,7 @@ services:
         sync: false # Paste your Resend key in the dashboard
       - key: RESEND_FROM
         value: MYNAIRATRACK <onboarding@resend.dev>
+      - key: BREVO_API_KEY
+        sync: false # Paste your Brevo key in the dashboard (delivers to any address)
+      - key: BREVO_SENDER
+        sync: false # A sender address verified in Brevo (e.g. your Gmail)
