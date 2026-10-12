@@ -196,6 +196,17 @@ def test_brevo_preferred_over_smtp(monkeypatch):
     _, kwargs = mocked.call_args
     assert kwargs["headers"]["api-key"] == "xkeysib-test"
     assert kwargs["json"]["to"] == [{"email": "a@example.com"}]
+    assert kwargs["json"]["sender"] == {"name": "MYNAIRATRACK", "email": "me@gmail.com"}
+
+
+def test_brevo_custom_sender_name(monkeypatch):
+    _brevo_env(monkeypatch)
+    monkeypatch.setenv("BREVO_SENDER_NAME", "My Brand")
+    with patch.object(email_module.httpx, "post",
+                      return_value=FakeResponse(201, {"messageId": "brevo-2"})) as mocked:
+        assert send_email("a@example.com", "Hi", "<p>Hi</p>") == "brevo-2"
+    _, kwargs = mocked.call_args
+    assert kwargs["json"]["sender"] == {"name": "My Brand", "email": "me@gmail.com"}
 
 
 def test_brevo_rejection(monkeypatch):

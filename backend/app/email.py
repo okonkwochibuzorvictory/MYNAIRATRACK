@@ -49,6 +49,10 @@ def brevo_sender() -> str:
     return os.getenv("BREVO_SENDER", "") or smtp_user()
 
 
+def brevo_sender_name() -> str:
+    return os.getenv("BREVO_SENDER_NAME", "MYNAIRATRACK")
+
+
 def smtp_user() -> str:
     return os.getenv("SMTP_USER", "")
 
@@ -132,7 +136,7 @@ def _send_brevo(to: str, subject: str, html: str) -> str:
             BREVO_API_URL,
             headers={"api-key": brevo_key(), "Content-Type": "application/json"},
             json={
-                "sender": {"email": brevo_sender()},
+                "sender": {"name": brevo_sender_name(), "email": brevo_sender()},
                 "to": [{"email": to}],
                 "subject": subject,
                 "htmlContent": html,

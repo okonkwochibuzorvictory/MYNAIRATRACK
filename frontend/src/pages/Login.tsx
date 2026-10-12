@@ -8,6 +8,7 @@ export default function Login() {
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [resent, setResent] = useState(false)
+  const [resendFailed, setResendFailed] = useState(false)
   const [resending, setResending] = useState(false)
 
   const needsVerification =
@@ -15,12 +16,21 @@ export default function Login() {
 
   async function resend() {
     setResending(true)
+    setResendFailed(false)
     try {
-      await apiFetch('/auth/resend-verification', {
+      const res = await apiFetch('/auth/resend-verification', {
         method: 'POST',
         body: JSON.stringify({ email }),
       })
-      setResent(true)
+      let emailed = true
+      try {
+        const data = await res.json()
+        if (typeof data?.verification_emailed === 'boolean') emailed = data.verification_emailed
+      } catch {
+        // Unreadable response: keep previous behaviour and assume it was sent.
+      }
+      if (emailed) setResent(true)
+      else setResendFailed(true)
     } finally {
       setResending(false)
     }
@@ -77,6 +87,10 @@ export default function Login() {
             <p className="mt-auth-sub">
               {resent ? (
                 'Verification email re-sent — check your inbox and spam folder.'
+              ) : resendFailed ? (
+                <span className="mt-error" style={{ display: 'block' }}>
+                  We could not send the email right now. Please try again in a few minutes.
+                </span>
               ) : (
                 <button
                   type="button"
