@@ -12,19 +12,35 @@ export interface RegisterResult extends User {
 
 const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? 'http://localhost:8000'
 
+// Generous timeout: the free-tier backend sleeps when idle and can take
+// ~a minute to wake. Without this, phones on slow data hang forever.
+const API_TIMEOUT_MS = 75000
+
 function base(): string {
   return API_BASE.replace(/\/$/, '')
 }
 
 export async function apiFetch(path: string, init?: RequestInit): Promise<Response> {
-  return fetch(`${base()}${path}`, {
-    ...init,
-    credentials: 'include',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(init?.headers ?? {}),
-    },
-  })
+  const ctrl = new AbortController()
+  const timer = window.setTimeout(() => ctrl.abort(), API_TIMEOUT_MS)
+  try {
+    return await fetch(`${base()}${path}`, {
+      ...init,
+      signal: ctrl.signal,
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(init?.headers ?? {}),
+      },
+    })
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      throw new Error('The server is taking too long (it may be waking up). Please try again.')
+    }
+    throw new Error('Network error. Check your connection and try again.')
+  } finally {
+    window.clearTimeout(timer)
+  }
 }
 
 async function readError(res: Response): Promise<string> {
