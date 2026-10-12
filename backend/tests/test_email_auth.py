@@ -13,6 +13,9 @@ os.environ["JWT_SECRET"] = "email-auth-test-secret-do-not-use-in-prod"
 os.environ["JWT_EXPIRE_MINUTES"] = "60"
 os.environ["COOKIE_SECURE"] = "false"
 os.environ["RESEND_API_KEY"] = ""
+os.environ.pop("BREVO_API_KEY", None)
+os.environ.pop("SMTP_USER", None)
+os.environ.pop("SMTP_PASSWORD", None)
 
 import psycopg
 import pytest
@@ -69,6 +72,16 @@ def client(reset_db):
         yield c
     app.dependency_overrides.clear()
     engine.dispose()
+
+
+@pytest.fixture(autouse=True)
+def _no_live_email(monkeypatch):
+    """Neutralise provider credentials at test time (not import time:
+    app.main loads backend/.env via dotenv on import). Guarantees the
+    suite never sends real email, whatever the developer has configured."""
+    monkeypatch.setenv("RESEND_API_KEY", "")
+    for var in ("BREVO_API_KEY", "BREVO_SENDER", "SMTP_USER", "SMTP_PASSWORD"):
+        monkeypatch.delenv(var, raising=False)
 
 
 @pytest.fixture()
@@ -223,3 +236,14 @@ def test_isolation_between_users(client, captured_tokens):
     assert client.get("/auth/verify", params={"token": raw_a}).status_code == 200
     assert db_value("SELECT is_verified FROM users WHERE email='a@example.com'")[0] is True
     assert db_value("SELECT is_verified FROM users WHERE email='b@example.com'")[0] is False
+
+
+def test_frontend_base_strips_whitespace(monkeypatch):
+    # A pasted FRONTEND_URL with a stray space/newline produced links
+    # that email providers refuse to open ("invalid control character").
+    from app.routers.auth import frontend_base
+
+    monkeypatch.setenv("FRONTEND_URL", "  https://mynairatrack.netlify.app/ \n")
+    assert frontend_base() == "https://mynairatrack.netlify.app"
+    monkeypatch.delenv("FRONTEND_URL", raising=False)
+    assert frontend_base() == "http://localhost:5173"

@@ -6,10 +6,30 @@ Usage: python -m pytest tests/test_email.py -v  (run from backend/)
 import os
 from unittest.mock import patch
 
+import pytest
+
 os.environ.pop("RESEND_API_KEY", None)
 
 from app import email as email_module
 from app.email import EmailNotConfigured, EmailSendError, is_configured, send_email
+
+
+@pytest.fixture(autouse=True)
+def _clean_provider_env(monkeypatch):
+    """Scrub real provider credentials (e.g. from backend/.env via dotenv)
+    so tests never depend on — or touch — the developer's live keys."""
+    for var in (
+        "RESEND_API_KEY",
+        "BREVO_API_KEY",
+        "BREVO_SENDER",
+        "BREVO_SENDER_NAME",
+        "SMTP_USER",
+        "SMTP_PASSWORD",
+        "SMTP_HOST",
+        "SMTP_PORT",
+        "SMTP_FROM",
+    ):
+        monkeypatch.delenv(var, raising=False)
 
 
 class FakeResponse:

@@ -28,7 +28,9 @@ UNVERIFIED_ERROR = "Please verify your email address before logging in"
 
 
 def frontend_base() -> str:
-    return os.getenv("FRONTEND_URL", "http://localhost:5173").rstrip("/")
+    # Strip whitespace: a pasted value with a stray space or newline
+    # produces links that email providers refuse to open.
+    return os.getenv("FRONTEND_URL", "http://localhost:5173").strip().rstrip("/")
 
 
 def to_user_out(user: User) -> UserOut:
