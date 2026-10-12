@@ -1,0 +1,8 @@
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "app.mynairatrack.twa",
+        "sha256_cert_fingerprints": ["30:B2:05:53:B5:CD:57:4B:5D:34:EE:5E:84:1A:75:7B:E4:C3:03:D1:53:CA:2A:DA:E1:71:D7:05:72:05:99:FD"]
+      }
+    }]
