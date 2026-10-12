@@ -198,6 +198,17 @@ def test_cookie_flags_present(client):
     assert "path=/" in lowered
 
 
+def test_cookie_samesite_none_when_secure(client, monkeypatch):
+    # Production (Render, COOKIE_SECURE=true) is cross-site vs Netlify:
+    # Lax cookies are dropped there, which logged users straight back out.
+    monkeypatch.setenv("COOKIE_SECURE", "true")
+    r = register(client, email="secureflags@example.com")
+    assert r.status_code == 201
+    lowered = r.headers.get("set-cookie", "").lower()
+    assert "samesite=none" in lowered
+    assert "secure" in lowered
+
+
 def test_user_isolation(client):
     assert register(client, name="User A", email="a@example.com").status_code == 201
     me_a = client.get("/users/me").json()

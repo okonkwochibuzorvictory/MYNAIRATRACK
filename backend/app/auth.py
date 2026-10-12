@@ -57,6 +57,14 @@ def create_access_token(user_id: int) -> str:
     return jwt.encode(payload, jwt_secret(), algorithm="HS256")
 
 
+def cookie_samesite() -> str:
+    # The hosted frontend (Netlify) and API (Render) are cross-site, which
+    # requires SameSite=None (browsers drop cross-site Lax cookies, so the
+    # session vanishes and the app bounces back to login). SameSite=None is
+    # rejected without Secure, so local http keeps lax (same-site anyway).
+    return "none" if cookie_secure() else "lax"
+
+
 def set_session_cookie(response: Response, user_id: int) -> None:
     token = create_access_token(user_id)
     response.set_cookie(
@@ -66,7 +74,7 @@ def set_session_cookie(response: Response, user_id: int) -> None:
         expires=jwt_expire_minutes() * 60,
         path=COOKIE_PATH,
         httponly=True,
-        samesite="lax",
+        samesite=cookie_samesite(),
         secure=cookie_secure(),
     )
 
@@ -76,7 +84,7 @@ def clear_session_cookie(response: Response) -> None:
         key=COOKIE_NAME,
         path=COOKIE_PATH,
         httponly=True,
-        samesite="lax",
+        samesite=cookie_samesite(),
         secure=cookie_secure(),
     )
 
